@@ -34,6 +34,13 @@ contract SuperAuction is Ownable, SuperAppBase {
         address nextAccount;
     }
 
+    struct ViewBidder {
+        address account;
+        uint256 timeToWin;
+        int96 flowRate;
+        uint256 balance;
+    }
+
     uint256 public immutable streamTime;
     address public winner;
     int96 public winnerFlowRate;
@@ -189,7 +196,6 @@ contract SuperAuction is Ownable, SuperAppBase {
     }
 
     //Update Flow - Review
-    //don't forget that oldFlowRate and oldTimestamp
     function _updatePlayer(
         address account,
         int96 oldFlowRate,
@@ -214,16 +220,10 @@ contract SuperAuction is Ownable, SuperAppBase {
             bidders[previousAccount].nextAccount = bidders[account].nextAccount;
             newCtx = _endStream(address(this), account, ctx);
             (, int96 _flowRate) = _getFlowInfo(oldWinner);
-            //Settle the old winner values before starting the new stream
-            //bidders[oldWinner].cumulativeTimer = bidders[oldWinner].cumulativeTimer.add(cumulativeTimer);
-            //bidders[oldWinner].lastSettleAmount = bidders[oldWinner].lastSettleAmount.add(settleBalance);
             newCtx = _startStream(oldWinner, _flowRate, newCtx);
             bidders[account].nextAccount = oldWinner;
             winner = account;
         }
-
-        //wrong - oldTimestamp and oldFlowRate are not the correct values (from the oldWinner);
-        //(uint256  settleBalance, uint256 cumulativeTimer) = getSettleInfo(oldWinner);
 
         bidders[oldWinner].cumulativeTimer = bidders[oldWinner].cumulativeTimer.add(cumulativeTimer);
         bidders[oldWinner].lastSettleAmount = bidders[oldWinner].lastSettleAmount.add(settleBalance);
@@ -332,14 +332,14 @@ contract SuperAuction is Ownable, SuperAppBase {
     }
 
     /*FRONTEND VIEW FUNCTIONS - Don't call this from other smart contracts*/
-    function getBiddersAddresses(uint256 listFrom, uint256 listTo) public view returns(address[100] memory top) {
+    function getBiddersAddresses(uint256 listFrom, uint256 listTo) public view returns(ViewBidder[100] memory top) {
 
         if(winner == address(0)) {
             return top;
         }
         address _bidder = winner;
         uint256 j;
-        top[0] = winner;
+        top[0] = _getViewBidder(winner);
         for(uint256 i = 0; i < 10000; i++) {
             if(i > listFrom && i < listTo) {
                 j++;
@@ -347,27 +347,23 @@ contract SuperAuction is Ownable, SuperAppBase {
                 if(_bidder == address(0)) {
                     return top;
                 }
-                top[j] = _bidder;
+                top[j] = _getViewBidder(_bidder);
             }
         }
     }
 
-/*
-    function getBidderPrevious(address bidder) public view returns(address) {
-        address[] memory _bidders = this.getBiddersAddresses();
-        for(uint256 i = 0; i < _bidders.length; i++) {
-            if(_bidders[i] == bidder && i > 0) {
-                return _bidders[i - 1];
-            }
-        }
-        return address(0);
-    }
-    */
 
+    function _getViewBidder(address account) private view returns(ViewBidder memory) {
+        (uint256 timestamp, int96 _flowRate) = _getFlowInfo(account);
+        uint256 timeToWin = streamTime.sub(bidders[account].cumulativeTimer);
+        uint256 balance = bidders[account].lastSettleAmount.add(uint256((int256(block.timestamp).sub(int256(timestamp))).mul(_flowRate)));
+        return ViewBidder(account, timeToWin, _flowRate, balance);
+
+    }
 
     /*
-    * Callbacks
-    */
+     * Callbacks
+     */
 
     function afterAgreementCreated(
         ISuperToken /*superToken*/,
