@@ -1,0 +1,1 @@
+require("./contracts/Auction.test.js");

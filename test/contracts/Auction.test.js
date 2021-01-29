@@ -240,7 +240,7 @@ contract("SuperAuction", accounts => {
         );
     });
 
-    it.only("Case #3 - Swap player SuperAuction (swap elements on list)", async () => {
+    it("Case #3 - Swap player SuperAuction (swap elements on list)", async () => {
 
         let bobFlowInfo = await joinAuction(bob, "10000000");
         let carolFlowInfo = await joinAuction(carol, "1100000001");
