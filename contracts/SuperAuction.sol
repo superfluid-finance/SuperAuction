@@ -125,6 +125,27 @@ contract SuperAuction is Ownable, SuperAppBase {
         _superToken.transfer(to, amount);
     }
 
+
+     //A new Player is always going to top as winner
+    function _newPlayer(address account, int96 flowRate, bytes memory ctx) internal returns(bytes memory newCtx) {
+        require(flowRate > winnerFlowRate, "Auction: FlowRate is not enough");
+        require(!_isPlayer(account), "Auction: User is already in Auction");
+
+        newCtx = ctx;
+        if(winner == address(0)) {
+            bidders[account] = Bidder(1, 0, address(0));
+        } else {
+            bidders[account] = Bidder(1, 0, winner);
+            newCtx = _startStream(winner, winnerFlowRate, ctx);
+        }
+
+        winner = account;
+        winnerFlowRate = flowRate;
+
+        //emit event
+    }
+
+
     //TODO: refactor
     function _dropPlayer(address account, bytes memory ctx) internal returns(bytes memory newCtx) {
         newCtx = ctx;
@@ -176,25 +197,6 @@ contract SuperAuction is Ownable, SuperAppBase {
         }
     }
 
-    //A new Player is always going to top as winner
-    function _newPlayer(address account, int96 flowRate, bytes memory ctx) internal returns(bytes memory newCtx) {
-        require(flowRate > winnerFlowRate, "Auction: FlowRate is not enough");
-        require(!_isPlayer(account), "Auction: User is already in Auction");
-
-        newCtx = ctx;
-        if(winner == address(0)) {
-            bidders[account] = Bidder(1, 0, address(0));
-        } else {
-            bidders[account] = Bidder(1, 0, winner);
-            newCtx = _startStream(winner, winnerFlowRate, ctx);
-        }
-
-        winner = account;
-        winnerFlowRate = flowRate;
-
-        //emit event
-    }
-
     //Update Flow - Review
     function _updatePlayer(
         address account,
@@ -215,6 +217,7 @@ contract SuperAuction is Ownable, SuperAppBase {
         (uint256  settleBalance, uint256 cumulativeTimer) = getSettleInfo(oldWinner, oldTimestamp, oldFlowRate);
 
         if(account != winner) {
+            require(_host.decodeCtx(ctx).userData.length > 0, "Auction: No Previous Player information");
             address previousAccount = abi.decode(_host.decodeCtx(ctx).userData, (address));
             require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
             bidders[previousAccount].nextAccount = bidders[account].nextAccount;
