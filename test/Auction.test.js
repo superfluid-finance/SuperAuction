@@ -94,39 +94,40 @@ contract("SuperAuction", accounts => {
 
     async function joinAuction(account, flowRate) {
         let obj = {};
-        const tx = await sf.cfa.createFlow({
+        await sf.cfa.createFlow({
             superToken: daix.address,
             sender: account,
             receiver: app.address,
             flowRate: flowRate
         });
 
-        obj.bidder = await sf.cfa.getFlow({
+        return await sf.cfa.getFlow({
             superToken: daix.address,
             sender: account,
             receiver: app.address
         });
+    }
 
-        obj.auction = await sf.cfa.getFlow({
+    async function getFlowFromAuction(account) {
+        return await sf.cfa.getFlow({
             superToken: daix.address,
             sender: app.address,
             receiver: account
         });
-
-        return obj;
     }
 
     it("Case #1 - Bob joins new SuperAuction", async () => {
         const bobFlowInfo = await joinAuction(bob, "10000000");
         console.log(
-            `Bob -> Auction flow : ${bobFlowInfo.bidder.flowRate.toString()}`
+            `Bob -> Auction flow : ${bobFlowInfo.flowRate.toString()}`
         );
+        const auctionFlowInfo = await getFlowFromAuction(bob);
 
         const winner = await app.winner.call();
         const winnerFlowRate = await app.winnerFlowRate.call();
         assert.equal(winner, bob, "Bob should be the winner");
-        assert.equal(winnerFlowRate.toString(), bobFlowInfo.bidder.flowRate.toString(), "Bob should have the correct flowRate as winner");
-        assert.equal(0, bobFlowInfo.auction.flowRate, "Auction should not send stream to winner");
+        assert.equal(winnerFlowRate.toString(), bobFlowInfo.flowRate.toString(), "Bob should have the correct flowRate as winner");
+        assert.equal(0, auctionFlowInfo.flowRate, "Auction should not send stream to winner");
         assert.equal(bob, (await getListTop100())[0].account, "Bob not in fist place on listTop");
     });
 
@@ -134,31 +135,36 @@ contract("SuperAuction", accounts => {
         const bobFlowInfo = await joinAuction(bob, "10000000");
         const carolFlowInfo = await joinAuction(carol, "1100000001");
         console.log(
-            `Bob -> Auction flow : ${bobFlowInfo.bidder.flowRate.toString()}`
+            `Bob -> Auction flow : ${bobFlowInfo.flowRate.toString()}`
         );
         console.log(
-            `Carol -> Auction flow : ${carolFlowInfo.bidder.flowRate.toString()}`
+            `Carol -> Auction flow : ${carolFlowInfo.flowRate.toString()}`
         );
 
         let winner = await app.winner.call();
         let winnerFlowRate = await app.winnerFlowRate.call();
+
         assert.equal(winner, carol, "Carol should be the winner");
-        assert.equal(winnerFlowRate.toString(), carolFlowInfo.bidder.flowRate.toString(), "Carol should have the correct flowRate as winner");
+        assert.equal(winnerFlowRate.toString(), carolFlowInfo.flowRate.toString(), "Carol should have the correct flowRate as winner");
         assert.equal(carol, (await getListTop100())[0].account, "Carol not in fist place on listTop");
         assert.equal(bob, (await getListTop100())[1].account, "Bob not in second place on listTop");
 
         const danFlowInfo = await joinAuction(dan, "5100000000");
         console.log(
-            `Dan -> Auction flow : ${danFlowInfo.bidder.flowRate.toString()}`
+            `Dan -> Auction flow : ${danFlowInfo.flowRate.toString()}`
         );
         winner = await app.winner.call();
         winnerFlowRate = await app.winnerFlowRate.call();
 
+        const auctionFlowInfoToBob = await getFlowFromAuction(bob);
+        const auctionFlowInfoToCarol = await getFlowFromAuction(carol);
+        const auctionFlowInfoToDan = await getFlowFromAuction(dan);
+
         assert.equal(winner, dan, "Dan should be the winner");
-        assert.equal(winnerFlowRate.toString(), danFlowInfo.bidder.flowRate.toString(), "Dan should have the correct flowRate as winner");
-        assert.equal(0, danFlowInfo.auction.flowRate, "Auction should not send stream to winner");
-        assert.equal(bobFlowInfo.bidder.flowRate, bobFlowInfo.auction.flowRate, "Bob should receive the same flow");
-        assert.equal(carolFlowInfo.bidder.flowRate, carolFlowInfo.auction.flowRate, "Carol should receive the same flow");
+        assert.equal(winnerFlowRate.toString(), danFlowInfo.flowRate.toString(), "Dan should have the correct flowRate as winner");
+        assert.equal(0, auctionFlowInfoToDan.flowRate, "Auction should not send stream to winner");
+        assert.equal(bobFlowInfo.flowRate, auctionFlowInfoToBob.flowRate, "Bob should receive the same flow");
+        assert.equal(carolFlowInfo.flowRate, auctionFlowInfoToCarol.flowRate, "Carol should receive the same flow");
         assert.equal(dan, (await getListTop100())[0].account, "Dan not in fist place on listTop");
         assert.equal(carol, (await getListTop100())[1].account, "Carol not in second place on listTop");
         assert.equal(bob, (await getListTop100())[2].account, "Bob not in third place on listTop");
