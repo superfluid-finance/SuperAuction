@@ -5,9 +5,10 @@ const deployTestToken = require("@superfluid-finance/ethereum-contracts/scripts/
 const deploySuperToken = require("@superfluid-finance/ethereum-contracts/scripts/deploy-super-token");
 const SuperfluidSDK = require("@superfluid-finance/js-sdk");
 const SuperAuction = artifacts.require("SuperAuction");
-
+const traveler = require("ganache-time-traveler");
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers").constants;
+const TEST_TRAVEL_TIME = 3600 * 24; // 24 hours
 
 contract("SuperAuction", accounts => {
     const errorHandler = err => {
@@ -22,6 +23,15 @@ contract("SuperAuction", accounts => {
     let daix;
     let app;
 
+    async function timeTravelOnce(time) {
+        const _time = time || TEST_TRAVEL_TIME;
+        const block1 = await web3.eth.getBlock("latest");
+        console.log("current block time", block1.timestamp);
+        console.log(`time traveler going to the future +${_time}...`);
+        await traveler.advanceTimeAndBlock(_time);
+        const block2 = await web3.eth.getBlock("latest");
+        console.log("new block time", block2.timestamp);
+    }
 
     async function joinAuction(account, flowRate) {
         await sf.cfa.createFlow({
@@ -277,6 +287,7 @@ contract("SuperAuction", accounts => {
         assert.equal(bobFlowInfo.flowRate, auctionFlowInfoToBob.flowRate, "Bob should receive the same flow");
 
         //Bob from last to top
+        //await timeTravelOnce(3600 * 2);
         bobFlowInfo = await updateAuction(bob, "6150000000");
 
         auctionFlowInfoToBob = await getFlowFromAuction(bob);
@@ -298,7 +309,7 @@ contract("SuperAuction", accounts => {
         assert.equal(danFlowInfo.flowRate, auctionFlowInfoToDan.flowRate, "Dan should receive the same flow");
 
         //Alice from second to top
-
+        //await timeTravelOnce(3600);
         aliceFlowInfo = await updateAuction(alice, "6154000000");
 
         auctionFlowInfoToBob = await getFlowFromAuction(bob);
@@ -341,7 +352,7 @@ contract("SuperAuction", accounts => {
     });
 
 
-    it.only("Case #4 - Players dropping auction", async () => {
+    it("Case #4 - Players dropping auction", async () => {
 
         await joinAuction(bob, "10000000");
         let bobFlowInfo = await dropAuction(bob);
@@ -367,6 +378,7 @@ contract("SuperAuction", accounts => {
 
         await joinAuction(dan, "5100000000");
         let aliceFlowInfo = await joinAuction(alice, "5150000000");
+
         await joinAuction(bob, "15150000000");
 
         await dropAuction(dan);
