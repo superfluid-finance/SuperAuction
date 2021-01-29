@@ -131,7 +131,7 @@ contract("SuperAuction", accounts => {
         assert.equal(bob, (await getListTop100())[0].account, "Bob not in fist place on listTop");
     });
 
-    it("Case #2 - Joining running SuperAuction", async () => {
+    it("Case #2 - Joining running SuperAuction (insert on top list)", async () => {
         const bobFlowInfo = await joinAuction(bob, "10000000");
         const carolFlowInfo = await joinAuction(carol, "1100000001");
         console.log(
@@ -156,9 +156,9 @@ contract("SuperAuction", accounts => {
         winner = await app.winner.call();
         winnerFlowRate = await app.winnerFlowRate.call();
 
-        const auctionFlowInfoToBob = await getFlowFromAuction(bob);
-        const auctionFlowInfoToCarol = await getFlowFromAuction(carol);
-        const auctionFlowInfoToDan = await getFlowFromAuction(dan);
+        let auctionFlowInfoToBob = await getFlowFromAuction(bob);
+        let auctionFlowInfoToCarol = await getFlowFromAuction(carol);
+        let auctionFlowInfoToDan = await getFlowFromAuction(dan);
 
         assert.equal(winner, dan, "Dan should be the winner");
         assert.equal(winnerFlowRate.toString(), danFlowInfo.flowRate.toString(), "Dan should have the correct flowRate as winner");
@@ -169,5 +169,29 @@ contract("SuperAuction", accounts => {
         assert.equal(carol, (await getListTop100())[1].account, "Carol not in second place on listTop");
         assert.equal(bob, (await getListTop100())[2].account, "Bob not in third place on listTop");
 
+
+        const aliceFlowInfo = await joinAuction(alice, "5150000000");
+        console.log(
+            `Alice -> Auction flow : ${bobFlowInfo.flowRate.toString()}`
+        );
+
+        winner = await app.winner.call();
+        winnerFlowRate = await app.winnerFlowRate.call();
+
+        auctionFlowInfoToBob = await getFlowFromAuction(bob);
+        auctionFlowInfoToCarol = await getFlowFromAuction(carol);
+        auctionFlowInfoToDan = await getFlowFromAuction(dan);
+        let auctionFlowInfoToAlice = await getFlowFromAuction(alice);
+
+        assert.equal(winner, alice, "Alice should be the winner");
+        assert.equal(winnerFlowRate.toString(), aliceFlowInfo.flowRate.toString(), "Alice should have the correct flowRate as winner");
+        assert.equal(0, auctionFlowInfoToAlice.flowRate, "Auction should not send stream to winner");
+        assert.equal(bobFlowInfo.flowRate, auctionFlowInfoToBob.flowRate, "Bob should receive the same flow");
+        assert.equal(carolFlowInfo.flowRate, auctionFlowInfoToCarol.flowRate, "Carol should receive the same flow");
+        assert.equal(danFlowInfo.flowRate, auctionFlowInfoToDan.flowRate, "Dan should receive the same flow");
+        assert.equal(alice, (await getListTop100())[0].account, "Alice not in fist place on listTop");
+        assert.equal(dan, (await getListTop100())[1].account, "Dan not in fist place on listTop");
+        assert.equal(carol, (await getListTop100())[2].account, "Carol not in second place on listTop");
+        assert.equal(bob, (await getListTop100())[3].account, "Bob not in third place on listTop");
     });
 });
