@@ -87,10 +87,6 @@ contract SuperAuction is Ownable, SuperAppBase {
         }
     }
 
-    function _isPlayer(address account) internal view returns(bool) {
-        return bidders[account].cumulativeTimer > 1;
-    }
-
     function withdraw() external onlyOwner {
         require(finish, "Auction: Not finish");
         (uint256 timestamp, int96 flowRate) = _getFlowInfo(winner);
@@ -125,23 +121,19 @@ contract SuperAuction is Ownable, SuperAppBase {
         _superToken.transfer(to, amount);
     }
 
-
      //A new Player is always going to top as winner
     function _newPlayer(address account, int96 flowRate, bytes memory ctx) internal returns(bytes memory newCtx) {
         require(flowRate > winnerFlowRate, "Auction: FlowRate is not enough");
-        require(!_isPlayer(account), "Auction: User is already in Auction");
-
         newCtx = ctx;
-        if(winner == address(0)) {
-            bidders[account] = Bidder(1, 0, address(0));
-        } else {
-            bidders[account] = Bidder(1, 0, winner);
+        if(bidders[account].cumulativeTimer == 0) {
+            bidders[account].cumulativeTimer = 1;
+        }
+        bidders[account].nextAccount = winner;
+        if(winner != address(0)) {
             newCtx = _startStream(winner, winnerFlowRate, ctx);
         }
-
         winner = account;
         winnerFlowRate = flowRate;
-
         //emit event
     }
 
@@ -191,7 +183,7 @@ contract SuperAuction is Ownable, SuperAppBase {
                 _withdrawSettleBalance(account);
             } else {
                 (uint256  settleBalance, uint256 cumulativeTimer) = getSettleInfo(winner, 0, 0);
-                bidders[winner].cumulativeTimer = bidders[winner].cumulativeTimer + cumulativeTimer;
+                bidders[winner].cumulativeTimer = bidders[winner].cumulativeTimer.add(cumulativeTimer);
                 bidders[winner].lastSettleAmount = bidders[winner].lastSettleAmount.add(settleBalance);
             }
         }
