@@ -88,7 +88,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     }
 
     function _isPlayer(address account) internal view returns(bool) {
-        return bidders[account].cumulativeTimer != 0;
+        return bidders[account].cumulativeTimer > 1;
     }
 
     function withdraw() external onlyOwner {
