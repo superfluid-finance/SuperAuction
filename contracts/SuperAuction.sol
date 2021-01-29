@@ -208,7 +208,6 @@ contract SuperAuction is Ownable, SuperAppBase {
     returns(bytes memory newCtx)
     {
         require(!finish, "Auction: Not running Auction");
-        require(_isPlayer(account), "Auction: User is not in Auction");
         (, int96 flowRate) = _getFlowInfo(account);
         require(flowRate > winnerFlowRate, "Auction: FlowRate is not enough");
 
