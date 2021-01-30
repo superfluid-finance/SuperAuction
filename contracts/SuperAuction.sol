@@ -346,7 +346,6 @@ contract SuperAuction is Ownable, SuperAppBase {
         }
     }
 
-
     function _getViewBidder(address account) private view returns(ViewBidder memory) {
         (uint256 timestamp, int96 _flowRate) = _getFlowInfo(account);
         uint256 timeToWin = streamTime.sub(bidders[account].cumulativeTimer);
@@ -377,7 +376,6 @@ contract SuperAuction is Ownable, SuperAppBase {
         return _newPlayer(account, flowRate, ctx);
     }
 
-    //TODO: DELETE
     function beforeAgreementUpdated(
         ISuperToken superToken,
         address agreementClass,
