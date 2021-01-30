@@ -203,7 +203,7 @@ contract("SuperAuction", accounts => {
             86400
         );
 
-        viewer = await web3tx(Viewer.new, "Deploy SuperAuctionViwer")();
+        viewer = await web3tx(Viewer.new, "Deploy SuperAuctionViewer")();
     });
 
     async function assertNoWinner() {
@@ -405,7 +405,15 @@ contract("SuperAuction", accounts => {
     it("Case # - Player should maintain information when rejoining", async () => {
     });
 
-    it("Case # - Winner ends the auction", async () => {});
+    it("Case # - Winner ends the auction", async () => {
+        await joinAuction(bob, "10000000");
+        await joinAuction(carol, "1100000001");
+        await joinAuction(dan, "5100000000");
+        await timeTravelOnce(3600);
+        await dropAuction(dan);
+        const finish = await app.isFinish.call();
+        assert.ok(finish, "Auction should finish after correct request");
+    });
 
     it("Case # - Winner pays winner bid", async () => {});
 
