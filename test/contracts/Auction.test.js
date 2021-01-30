@@ -59,17 +59,22 @@ contract("SuperAuction", accounts => {
 
     async function updateAuction(account, flowRate) {
         const previousPlayerAddress = (await getPreviousPlayer(account)).account;
-        await sf.cfa.updateFlow({
-            superToken: daix.address,
-            sender: account,
-            receiver: app.address,
-            flowRate: flowRate,
-            userData: await web3.eth.abi.encodeParameters(
+        let userData;
+        if (previousPlayerAddress !== undefined) {
+            userData = await web3.eth.abi.encodeParameters(
                 ["address"],
                 [
                     previousPlayerAddress
                 ]
             )
+        }
+
+        await sf.cfa.updateFlow({
+            superToken: daix.address,
+            sender: account,
+            receiver: app.address,
+            flowRate: flowRate,
+            userData: userData
         });
         let obj = {};
         obj = await sf.cfa.getFlow({
@@ -312,7 +317,7 @@ contract("SuperAuction", accounts => {
     });
 
 
-    it.only("Case #4 - Players dropping auction", async () => {
+    it("Case #4 - Players dropping auction", async () => {
 
         await joinAuction(bob, "10000000");
         await timeTravelOnce(1800);
@@ -338,5 +343,37 @@ contract("SuperAuction", accounts => {
         await assertTablePositions([alice, carol]);
         await assertUserWinner(aliceFlowInfo);
     });
+
+    it("Case #5 - Players should maintain correct information", async () => {
+        let bobFlow = toBN(10000000);
+        let bobFlowInfo = await joinAuction(bob, bobFlow);
+        let bobMapInfo = await app.bidders(bob);
+        let flowInfo = await getFlow(bob, app.address);
+
+        assert.equal(bobMapInfo.cumulativeTimer.toString(), "1", "Bob should not have cumulative time");
+        assert.equal(bobMapInfo.lastSettleAmount.toString(), "0", "Bob should not have settle balance");
+
+        await timeTravelOnce(1800);
+        bobMapInfo = await app.bidders(bob);
+        assert.equal(bobMapInfo.cumulativeTimer.toString(), "1", "Bob should not have cumulative time");
+        assert.equal(bobMapInfo.lastSettleAmount.toString(), "0", "Bob should not have settle balance");
+        bobFlowInfo = await updateAuction(bob, "6150000000");
+        await timeTravelOnce(1800);
+        bobMapInfo = await app.bidders(bob);
+        assert.equal(
+            bobMapInfo.cumulativeTimer.mul(bobFlow).toString(),
+            bobMapInfo.lastSettleAmount.add(bobFlow).toString(),
+            "Bob information is not consistent"
+        );
+    });
+
+    it("Case # - Player should maintain information when rejoining", async () => {
+    });
+
+    it("Case # - Winner ends the auction", async () => {});
+
+    it("Case # - Winner pays winner bid", async () => {});
+
+
 
 });
