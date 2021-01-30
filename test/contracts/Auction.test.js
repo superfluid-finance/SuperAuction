@@ -5,6 +5,7 @@ const deployTestToken = require("@superfluid-finance/ethereum-contracts/scripts/
 const deploySuperToken = require("@superfluid-finance/ethereum-contracts/scripts/deploy-super-token");
 const SuperfluidSDK = require("@superfluid-finance/js-sdk");
 const SuperAuction = artifacts.require("SuperAuction");
+const Viewer = artifacts.require("SuperAuctionViewer");
 const traveler = require("ganache-time-traveler");
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers").constants;
@@ -29,6 +30,7 @@ contract("SuperAuction", accounts => {
     let dai;
     let daix;
     let app;
+    let viewer;
 
     async function timeTravelOnce(time) {
         const _time = time || TEST_TRAVEL_TIME;
@@ -41,11 +43,22 @@ contract("SuperAuction", accounts => {
     }
 
     async function joinAuction(account, flowRate) {
+        const previousPlayerAddress = (await getPreviousPlayer(account));
+        let userData;
+        if (previousPlayerAddress !== undefined && previousPlayerAddress.account !== undefined) {
+            userData = await web3.eth.abi.encodeParameters(
+                ["address"],
+                [
+                    previousPlayerAddress
+                ]
+            )
+        }
         await sf.cfa.createFlow({
             superToken: daix.address,
             sender: account,
             receiver: app.address,
-            flowRate: flowRate
+            flowRate: flowRate,
+            userData: userData
         });
         let obj = {};
         obj = await sf.cfa.getFlow({
@@ -119,7 +132,7 @@ contract("SuperAuction", accounts => {
     }
 
     async function getListTop100() {
-        return await app.getBiddersAddresses(0, 100);
+        return await viewer.getBiddersAddresses(app.address, 0, 100);
     }
 
     async function getPlayerPosition(account) {
@@ -189,6 +202,8 @@ contract("SuperAuction", accounts => {
             daix.address,
             86400
         );
+
+        viewer = await web3tx(Viewer.new, "Deploy SuperAuctionViwer")();
     });
 
     async function assertNoWinner() {
@@ -262,7 +277,7 @@ contract("SuperAuction", accounts => {
         );
     });
 
-    it("Case #3 - Swap player SuperAuction (swap elements on list)", async () => {
+    it("Case #3 - (Queue) Swap player SuperAuction (swap elements on list)", async () => {
 
         let bobFlowInfo = await joinAuction(bob, "10000000");
         let carolFlowInfo = await joinAuction(carol, "1100000001");
@@ -287,8 +302,8 @@ contract("SuperAuction", accounts => {
         await assertUserWinner(bobFlowInfo);
         await assertTablePositions([bob, alice, dan, carol]);
         assert.equal(0, auctionFlowInfoToBob.flowRate, "Auction should not send stream to winner");
-        assert.equal(aliceFlowInfo.flowRate, auctionFlowInfoToAlice.flowRate, "Alice should receive the same flow");
         assert.equal(carolFlowInfo.flowRate, auctionFlowInfoToCarol.flowRate, "Carol should receive the same flow");
+        assert.equal(aliceFlowInfo.flowRate, auctionFlowInfoToAlice.flowRate, "Alice should receive the same flow");
         assert.equal(danFlowInfo.flowRate, auctionFlowInfoToDan.flowRate, "Dan should receive the same flow");
         //Alice from second to top
         aliceFlowInfo = await updateAuction(alice, "6154000000");
@@ -318,9 +333,7 @@ contract("SuperAuction", accounts => {
 
 
     it("Case #4 - Players dropping auction", async () => {
-
         await joinAuction(bob, "10000000");
-        await timeTravelOnce(1800);
         let bobFlowInfo = await dropAuction(bob);
         await assertNoWinner();
         assert.equal(bobFlowInfo.flowRate, "0", "Bob should not be streaming to auction");
@@ -344,27 +357,49 @@ contract("SuperAuction", accounts => {
         await assertUserWinner(aliceFlowInfo);
     });
 
-    it("Case #5 - Players should maintain correct information", async () => {
-        let bobFlow = toBN(10000000);
-        let bobFlowInfo = await joinAuction(bob, bobFlow);
-        let bobMapInfo = await app.bidders(bob);
+    //Check winner update self balance, check if winner stops being winners
+    it.skip("Case #5 - Players should maintain correct information", async () => {
+        const bob1Flow = toBN(10000000);
+        const bob2Flow = toBN(6150000000);
+        const bob3Flow = toBN(6150000001);
+
+        let bobFlowInfo = await joinAuction(bob, bob1Flow);
+        let bobMapInfo1 = await app.bidders(bob);
         let flowInfo = await getFlow(bob, app.address);
 
-        assert.equal(bobMapInfo.cumulativeTimer.toString(), "1", "Bob should not have cumulative time");
-        assert.equal(bobMapInfo.lastSettleAmount.toString(), "0", "Bob should not have settle balance");
+        assert.equal(bobMapInfo1.cumulativeTimer.toString(), "1", "Bob should not have cumulative time");
+        assert.equal(bobMapInfo1.lastSettleAmount.toString(), "0", "Bob should not have settle balance");
+        await timeTravelOnce(1800);
 
-        await timeTravelOnce(1800);
         bobMapInfo = await app.bidders(bob);
-        assert.equal(bobMapInfo.cumulativeTimer.toString(), "1", "Bob should not have cumulative time");
-        assert.equal(bobMapInfo.lastSettleAmount.toString(), "0", "Bob should not have settle balance");
-        bobFlowInfo = await updateAuction(bob, "6150000000");
+        assert.equal(bobMapInfo1.cumulativeTimer.toString(), "1", "Bob should not have cumulative time");
+        assert.equal(bobMapInfo1.lastSettleAmount.toString(), "0", "Bob should not have settle balance");
+
+        bobFlowInfo = await updateAuction(bob, bob2Flow);
         await timeTravelOnce(1800);
-        bobMapInfo = await app.bidders(bob);
+
+        bobMapInfo1 = await app.bidders(bob);
         assert.equal(
-            bobMapInfo.cumulativeTimer.mul(bobFlow).toString(),
-            bobMapInfo.lastSettleAmount.add(bobFlow).toString(),
+            bobMapInfo1.cumulativeTimer.mul(bob1Flow).toString(),
+            bobMapInfo1.lastSettleAmount.add(bob1Flow).toString(),
             "Bob information is not consistent"
         );
+
+        flowInfo = await getFlow(bob, app.address);
+        bobFlowInfo = await updateAuction(bob, bob3Flow);
+        let bobMapInfo2 = await app.bidders(bob);
+
+        console.log(bobMapInfo2.cumulativeTimer.toString());
+        console.log(bobMapInfo2.lastSettleAmount.toString());
+
+        assert.equal(bobMapInfo2.cumulativeTimer.toString(), toBN(3601).toString(), "hdsjfhlaskdjfhasdkj");
+
+        assert.equal(
+            bobMapInfo.cumulativeTimer.mul(bob2Flow).toString(),
+            bobMapInfo.lastSettleAmount.add(bob2Flow).toString(),
+            "Bob 2 information is not consistent"
+        );
+
     });
 
     it("Case # - Player should maintain information when rejoining", async () => {
@@ -374,6 +409,14 @@ contract("SuperAuction", accounts => {
 
     it("Case # - Winner pays winner bid", async () => {});
 
-
-
+    it("Case # - Should finish the auction explicity", async () => {
+        await joinAuction(bob, "10000000");
+        await joinAuction(carol, "1100000001");
+        await joinAuction(dan, "5100000000");
+        await joinAuction(alice, "5150000000");
+        await timeTravelOnce(3600 * 25);
+        await app.finishAuction();
+        const finish = await app.isFinish.call();
+        assert.ok(finish, "Auction should finish after correct request");
+    });
 });

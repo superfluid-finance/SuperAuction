@@ -44,13 +44,14 @@ contract SuperAuction is Ownable, SuperAppBase {
     uint256 public immutable streamTime;
     address public winner;
     int96 public winnerFlowRate;
+    address private _tail;
 
-    bool public finish;
+    bool public isFinish;
     mapping(address => Bidder) public bidders;
 
     ISuperfluid private _host;
-    IConstantFlowAgreementV1 private _cfa;
-    ISuperToken private _superToken;
+    IConstantFlowAgreementV1 public _cfa;
+    ISuperToken public _superToken;
 
     constructor(
         ISuperfluid host,
@@ -70,59 +71,43 @@ contract SuperAuction is Ownable, SuperAppBase {
 
         uint256 configWord =
             SuperAppDefinitions.APP_LEVEL_FINAL |
-            SuperAppDefinitions.BEFORE_AGREEMENT_CREATED_NOOP |
-            SuperAppDefinitions.BEFORE_AGREEMENT_TERMINATED_NOOP;
+            SuperAppDefinitions.BEFORE_AGREEMENT_CREATED_NOOP;
+            //SuperAppDefinitions.BEFORE_AGREEMENT_TERMINATED_NOOP;
 
         _host.registerApp(configWord);
     }
 
-    function finishAuction() public {
-        _endAuction();
-    }
-
-    function _endAuction() internal {
-        if(bidders[winner].cumulativeTimer >= streamTime && !finish) {
-            finish = true;
-            //emit event
+    function finishAuction() external {
+        isFinish = true;
+        if(winner != address(0) && !isFinish) {
+            (uint256 timestamp, ) = _getFlowInfo(winner);
+            uint256 diff = block.timestamp > timestamp ? block.timestamp.sub(timestamp) : 0;
+            if(bidders[winner].cumulativeTimer.add(diff) >= streamTime) {
+                isFinish = true;
+                //emit event
+            }
         }
     }
 
-    function withdraw() external onlyOwner {
-        require(finish, "Auction: Not finish");
-        (uint256 timestamp, int96 flowRate) = _getFlowInfo(winner);
-        require(flowRate > 0, "Auction: No flowRate from Winner");
-        uint256 settleBalance = bidders[winner].lastSettleAmount;
-        bidders[winner].lastSettleAmount = 0;
-        settleBalance = settleBalance.add(uint256((int256(block.timestamp).sub(int256(timestamp))).mul(flowRate)));
-        _endStream(winner, address(this), "");
-        transfer(msg.sender, settleBalance);
-    }
-
-    function forceStopStream() external onlyOwner {
-        _endAuction();
-        require(finish, "Auction: Not finish");
-        _endStream(winner, address(this), "");
-    }
-
-    function withdrawSettleBalance() external {
-        require(finish, "Auction: Not finish");
-        require(msg.sender != winner, "Auction: Winner can't withdraw balance");
-        _withdrawSettleBalance(msg.sender);
-    }
-
-    function _withdrawSettleBalance(address account) internal {
-        uint256 settleBalance = bidders[account].lastSettleAmount;
-        bidders[account].lastSettleAmount = 0;
-        transfer(account, settleBalance);
-    }
-
-    function transfer(address to, uint256 amount) internal {
-        require(_superToken.balanceOf(address(this)) >= amount, "Auction: Amount greater than balance");
-        _superToken.transfer(to, amount);
+    function _endAuction(uint256 timestamp) internal {
+        if(winner != address(0) && !isFinish) {
+            uint256 diff = block.timestamp > timestamp ? block.timestamp.sub(timestamp) : 0;
+            if(bidders[winner].cumulativeTimer.add(diff) >= streamTime) {
+                isFinish = true;
+                //emit event
+           }
+        }
     }
 
      //A new Player is always going to top as winner
-    function _newPlayer(address account, int96 flowRate, bytes memory ctx) internal returns(bytes memory newCtx) {
+    function _newPlayer(
+        address account,
+        int96 flowRate,
+        bytes memory ctx
+    )
+    internal
+    returns(bytes memory newCtx)
+    {
         require(flowRate > winnerFlowRate, "Auction: FlowRate is not enough");
         newCtx = ctx;
         if(bidders[account].cumulativeTimer == 0) {
@@ -131,6 +116,9 @@ contract SuperAuction is Ownable, SuperAppBase {
         bidders[account].nextAccount = winner;
         if(winner != address(0)) {
             newCtx = _startStream(winner, winnerFlowRate, ctx);
+            if(_tail == address(0)) {
+                _tail = winner;
+            }
         }
         winner = account;
         winnerFlowRate = flowRate;
@@ -139,34 +127,35 @@ contract SuperAuction is Ownable, SuperAppBase {
 
 
     //TODO: refactor
-    function _dropPlayer(address account, bytes memory ctx) internal returns(bytes memory newCtx) {
+    function _dropPlayer(address account, uint256 timestamp, bytes memory ctx) internal returns(bytes memory newCtx) {
         newCtx = ctx;
-        _endAuction();
-        if(!finish) {
-
-            //winner lose money here - should we keep this?
+        _endAuction(timestamp);
+        if(!isFinish) {
             if(account == winner) {
-
+                //Only one bidder and is dropping
                 if(bidders[winner].nextAccount == address(0)) {
                     delete winner;
                     delete winnerFlowRate;
                 } else {
                     address _winner =  winner;
                     int96 flowRate;
-                    do {
 
+                    do {
                         account = bidders[_winner].nextAccount;
                         if(account != address(0)) {
                             (, flowRate) = _getFlowInfo(account);
                             if(flowRate > 0) {
                                 winner  = account;
                                 winnerFlowRate = flowRate;
+                                bidders[_tail].nextAccount = winner;
+                                _tail = winner;
                                 return _endStream(address(this), winner, ctx);
                             }
                         }
                         _winner = account;
 
                     } while ( _winner != address(0) && flowRate > 0);
+
 
                     //there is no winner in query
                     delete winner;
@@ -175,12 +164,11 @@ contract SuperAuction is Ownable, SuperAppBase {
             } else {
                 newCtx = _endStream(address(this), account, ctx);
             }
-
             //Withdraw phase
         } else {
             if(account != winner) {
                 newCtx = _endStream(address(this), account, ctx);
-                _withdrawSettleBalance(account);
+                //_withdrawSettleBalance(account);
             } else {
                 (uint256  settleBalance, uint256 cumulativeTimer) = getSettleInfo(winner, 0, 0);
                 bidders[winner].cumulativeTimer = bidders[winner].cumulativeTimer.add(cumulativeTimer);
@@ -199,7 +187,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     internal
     returns(bytes memory newCtx)
     {
-        require(!finish, "Auction: Not running Auction");
+        require(!isFinish, "Auction: Not running Auction");
         (, int96 flowRate) = _getFlowInfo(account);
         require(flowRate > winnerFlowRate, "Auction: FlowRate is not enough");
 
@@ -325,35 +313,6 @@ contract SuperAuction is Ownable, SuperAppBase {
         }
     }
 
-    /*FRONTEND VIEW FUNCTIONS - Don't call this from other smart contracts*/
-    function getBiddersAddresses(uint256 listFrom, uint256 listTo) public view returns(ViewBidder[100] memory top) {
-
-        if(winner == address(0)) {
-            return top;
-        }
-        address _bidder = winner;
-        uint256 j;
-        top[0] = _getViewBidder(winner);
-        for(uint256 i = 0; i < 10000; i++) {
-            if(i > listFrom && i < listTo) {
-                j++;
-                _bidder = bidders[_bidder].nextAccount;
-                if(_bidder == address(0)) {
-                    return top;
-                }
-                top[j] = _getViewBidder(_bidder);
-            }
-        }
-    }
-
-    function _getViewBidder(address account) private view returns(ViewBidder memory) {
-        (uint256 timestamp, int96 _flowRate) = _getFlowInfo(account);
-        uint256 timeToWin = streamTime.sub(bidders[account].cumulativeTimer);
-        uint256 balance = bidders[account].lastSettleAmount.add(uint256((int256(block.timestamp).sub(int256(timestamp))).mul(_flowRate)));
-        return ViewBidder(account, timeToWin, _flowRate, balance);
-
-    }
-
     /*
      * Callbacks
      */
@@ -369,11 +328,16 @@ contract SuperAuction is Ownable, SuperAppBase {
     external
     override
     onlyHost
+    isRunning
     returns (bytes memory newCtx)
     {
         address account = _host.decodeCtx(ctx).msgSender;
+        //if(bidders[account].cumulativeTimer > 0) {
+        //    return _updatePlayer(account, 0, 0, ctx);
+        //} else {
         (, int96 flowRate) = _getFlowInfo(account);
         return _newPlayer(account, flowRate, ctx);
+        //}
     }
 
     function beforeAgreementUpdated(
@@ -413,12 +377,33 @@ contract SuperAuction is Ownable, SuperAppBase {
         return _updatePlayer(account, oldFlowRate, oldTimestamp, ctx);
     }
 
-    function afterAgreementTerminated(
+    function beforeAgreementTerminated(
         ISuperToken superToken,
         address agreementClass,
         bytes32 /*agreementId*/,
         bytes calldata /*agreementData*/,
-        bytes calldata /*cbdata*/,
+        bytes calldata ctx
+    )
+        external
+        view
+        override
+        onlyHost
+        returns (bytes memory cbdata)
+    {
+        if(_isSameToken(superToken) && _isCFAv1(agreementClass)) {
+            address account = _host.decodeCtx(ctx).msgSender;
+            (uint256 timestamp, ) = _getFlowInfo(account);
+            cbdata = abi.encode(timestamp);
+        }
+        return ctx;
+    }
+
+     function afterAgreementTerminated(
+        ISuperToken superToken,
+        address agreementClass,
+        bytes32 /*agreementId*/,
+        bytes calldata /*agreementData*/,
+        bytes calldata cbdata,
         bytes calldata ctx
     )
     external
@@ -427,9 +412,9 @@ contract SuperAuction is Ownable, SuperAppBase {
     returns (bytes memory newCtx) {
         if(_isSameToken(superToken) && _isCFAv1(agreementClass)) {
             address account = _host.decodeCtx(ctx).msgSender;
-            return _dropPlayer(account, ctx);
+            uint256 timestamp = abi.decode(cbdata, (uint256));
+            return _dropPlayer(account, timestamp, ctx);
         }
-
         return ctx;
     }
 
@@ -443,6 +428,10 @@ contract SuperAuction is Ownable, SuperAppBase {
     }
 
     /*Modifier*/
+    modifier isRunning() {
+        require(!isFinish, "Auction: Not running");
+        _;
+    }
     modifier onlyHost() {
         require(msg.sender == address(_host), "Auction: support only one host");
         _;
