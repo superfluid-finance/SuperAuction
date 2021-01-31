@@ -36,7 +36,7 @@ contract SuperAuctionViewer {
         ISuperAuction auction = ISuperAuction(auctionAddress);
         address winner = auction.winner();
 
-        winner = winner == address(0) ? auction._tail() : winner;
+        winner = winner;
         if(winner == address(0)) {
             return top;
         }

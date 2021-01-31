@@ -359,28 +359,17 @@ contract("SuperAuction", accounts => {
         let bobFlowInfo = await dropAuction(bob);
         await assertNoWinner();
         assert.equal(bobFlowInfo.flowRate, "0", "Bob should not be streaming to auction");
-        await joinAuction(bob, "100000001111111");
-        let carolFlowInfo = await joinAuction(carol, "1100000001");
-        await joinAuction(bob, "100000001111111");
-        /*
-        await assertUserWinner(carolFlowInfo);
-        let auctionFlowInfoToBob = await getFlowFromAuction(bob);
-        let auctionFlowInfoToCarol = await getFlowFromAuction(carol);
-        assert.equal(bobFlowInfo.flowRate, auctionFlowInfoToBob.flowRate, "Bob should receive the same flow");
-        bobFlowInfo = await dropAuction(bob);
-        await assertUserWinner(carolFlowInfo);
-        assert.equal(bobFlowInfo.flowRate, "0", "Bob should not be streaming to auction");
+        await assertUserWinner(await joinAuction(carol, "1100000001"));
         await assertUserWinner(await joinAuction(dan, "5100000000"));
         let aliceFlowInfo = await joinAuction(alice, "5150000000");
         await assertUserWinner(aliceFlowInfo);
-        await assertUserWinner(await joinAuction(bob, "15150000000"));
-        await assertTablePositions([bob, alice, dan, carol]);
+        await assertTablePositions([alice, dan, carol]);
         await dropAuction(dan);
-        await dropAuction(bob);
         await assertTablePositions([alice, carol]);
-        await assertUserWinner(aliceFlowInfo);
         console.log(await getListTop100());
-        */
+        await assertUserWinner(aliceFlowInfo);
+        await dropAuction(alice);
+        assert.equal(await app.winner(), carol, "Carol is not the winner");
     });
 
     //Check winner update self balance, check if winner stops being winner

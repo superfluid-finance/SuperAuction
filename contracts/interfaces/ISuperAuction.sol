@@ -22,7 +22,6 @@ interface  ISuperAuction {
     function _cfa() external view returns (IConstantFlowAgreementV1);
     function _superToken() external view returns(ISuperToken);
     function winner() external view returns(address);
-    function _tail() external view returns(address);
     function winnerFlowRate() external view returns(int96);
     function streamTime() external view returns(uint256);
     function bidders(address account) external view returns(uint256 cumulativeTimer, uint256 lastSettleAmount, address nextAccount);

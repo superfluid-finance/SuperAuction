@@ -34,17 +34,9 @@ contract SuperAuction is Ownable, SuperAppBase {
         address nextAccount;
     }
 
-    struct ViewBidder {
-        address account;
-        uint256 timeToWin;
-        int96 flowRate;
-        uint256 balance;
-    }
-
     uint256 public immutable streamTime;
     address public winner;
     int96 public winnerFlowRate;
-    address public _tail;
 
     bool public isFinish;
     mapping(address => Bidder) public bidders;
@@ -103,17 +95,13 @@ contract SuperAuction is Ownable, SuperAppBase {
     returns(bytes memory newCtx)
     {
         require(flowRate > winnerFlowRate, "Auction: FlowRate is not enough");
+        require(bidders[account].cumulativeTimer == 0, "Auction: Sorry no rejoins");
         newCtx = ctx;
-        if(bidders[account].cumulativeTimer == 0) {
-            bidders[account].cumulativeTimer = 1;
-        }
-        bidders[account].nextAccount = (winner == address(0) ? _tail : winner);
+        bidders[account].cumulativeTimer = 1;
+        bidders[account].nextAccount = winner;
         if(winner != address(0)) {
             _settleAccount(winner, 0, 0);
             newCtx = _startStream(winner, winnerFlowRate, ctx);
-        }
-        if(_tail == address(0)) {
-            _tail = account;
         }
         winner = account;
         winnerFlowRate = flowRate;
@@ -133,42 +121,42 @@ contract SuperAuction is Ownable, SuperAppBase {
                     delete winner;
                     delete winnerFlowRate;
                 } else {
-                    address _winner =  winner;
+
+                    address next =  bidders[winner].nextAccount;
+                    address previous = winner;
                     int96 flowRate;
-                    do {
-                        account = bidders[_winner].nextAccount;
-                        if(account != address(0)) {
-                            (, flowRate) = _getFlowInfo(account);
-                            if(flowRate > 0) {
-                                bidders[winner].nextAccount = address(0);
-                                if(_tail != winner) {
-                                    bidders[_tail].nextAccount = winner;
-                                    _tail = winner;
-                                }
-                                winner  = account;
-                                winnerFlowRate = flowRate;
-                                return _endStream(address(this), winner, ctx);
-                            }
+
+                    while(next != address(0)) {
+                        (, flowRate) = _getFlowInfo(next);
+                        if(flowRate > 0) {
+                            bidders[previous].nextAccount = bidders[next].nextAccount;
+                            bidders[next].nextAccount = winner;
+                            bidders[winner].nextAccount = previous;
+                            winner  = next;
+                            winnerFlowRate = flowRate;
+                            return _endStream(address(this), next, ctx);
                         }
-                        _winner = account;
 
-                    } while ( _winner != address(0) && flowRate > 0);
+                        previous = next;
+                        next = bidders[next].nextAccount;
+                    }
 
-
-                    //there is no winner in query
+                    //there is no winner in queue
                     delete winner;
                     delete winnerFlowRate;
                 }
             } else {
                 newCtx = _endStream(address(this), account, ctx);
             }
+
         //Withdraw phase
         } else {
             if(account != winner) {
                 newCtx = _endStream(address(this), account, ctx);
-                //_withdrawSettleBalance(account);
+                _withdrawPlayer(account);
             } else {
                 _settleAccount(account, oldTimestamp, oldFlowRate);
+                //_withdrawWinner(account);
             }
         }
     }
@@ -189,10 +177,8 @@ contract SuperAuction is Ownable, SuperAppBase {
 
         newCtx = ctx;
         address oldWinner = winner;
-        (uint256  settleBalance, uint256 cumulativeTimer) = getSettleInfo(oldWinner, oldTimestamp, oldFlowRate);
 
         if(account != winner) {
-            require(_host.decodeCtx(ctx).userData.length > 0, "Auction: No Previous Player information");
             address previousAccount = abi.decode(_host.decodeCtx(ctx).userData, (address));
             require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
             bidders[previousAccount].nextAccount = bidders[account].nextAccount;
@@ -204,9 +190,7 @@ contract SuperAuction is Ownable, SuperAppBase {
             bidders[account].nextAccount = oldWinner;
             winner = account;
         }
-
-        bidders[oldWinner].cumulativeTimer = bidders[oldWinner].cumulativeTimer.add(cumulativeTimer);
-        bidders[oldWinner].lastSettleAmount = bidders[oldWinner].lastSettleAmount.add(settleBalance);
+        _settleAccount(oldWinner, oldTimestamp, oldFlowRate);
         winnerFlowRate = flowRate;
     }
 
@@ -260,9 +244,7 @@ contract SuperAuction is Ownable, SuperAppBase {
      * GateKeeper Functions
      *************************************************************************/
 
-
-
-
+    
     /**************************************************************************
      * Constant Flow Agreements Functions
      *************************************************************************/
@@ -355,12 +337,8 @@ contract SuperAuction is Ownable, SuperAppBase {
     returns (bytes memory newCtx)
     {
         address account = _host.decodeCtx(ctx).msgSender;
-        if(bidders[account].cumulativeTimer > 0) {
-            return _updatePlayer(account, 0, 0, ctx);
-        } else {
-            (, int96 flowRate) = _getFlowInfo(account);
-            return _newPlayer(account, flowRate, ctx);
-        }
+        (, int96 flowRate) = _getFlowInfo(account);
+        return _newPlayer(account, flowRate, ctx);
     }
 
     function beforeAgreementUpdated(
