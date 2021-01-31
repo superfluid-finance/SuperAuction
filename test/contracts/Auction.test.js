@@ -462,15 +462,16 @@ contract("SuperAuction", accounts => {
   });
 
   //Check winner update self balance, check if winner stops being winner
-  it.skip("Case #5 - Players should maintain correct information", async () => {
-    const bob1Flow = toBN(10000000);
-    const bob2Flow = toBN(3150000000);
-    const bob3Flow = toBN(6150000001);
+  it.only("Case #5 - Players should maintain correct information", async () => {
+    const bobFlow = toBN(10000000);
+    const aliceFlow = toBN(20000000);
+    const danFlow = toBN(30000000);
 
-    let bobFlowInfo = await joinAuction(bob, bob1Flow);
-    let bobMapInfo1 = await app.bidders(bob);
-    let flowInfo = await getFlow(bob, app.address);
+    let bobFlowInfo = await joinAuction(bob, bobFlow);
+    await timeTravelOnce(100);
+    let bob1Query = await app.bidders(bob);
 
+/*
     assert.equal(
       bobMapInfo1.cumulativeTimer.toString(),
       "1",
@@ -523,9 +524,8 @@ contract("SuperAuction", accounts => {
       bobMapInfo.lastSettleAmount.add(bob2Flow).toString(),
       "Bob 2 information is not consistent"
     );
+    */
   });
-
-  it("Case # - Player should maintain information when rejoining", async () => {});
 
   it("Case # - Winner ends the auction", async () => {
     await joinAuction(bob, "10000000");

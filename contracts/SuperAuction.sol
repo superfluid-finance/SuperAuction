@@ -111,7 +111,7 @@ contract SuperAuction is Ownable, SuperAppBase {
         );
         require(bidders[account].cumulativeTimer == 0, "Auction: Sorry no rejoins");
         newCtx = ctx;
-        bidders[account].cumulativeTimer = 1;
+        //bidders[account].cumulativeTimer = 1;
         bidders[account].nextAccount = winner;
         if(winner != address(0)) {
             _settleAccount(winner, 0, 0);
