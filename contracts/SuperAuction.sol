@@ -28,6 +28,11 @@ contract SuperAuction is Ownable, SuperAppBase {
     using SafeMath for uint256;
     using SignedSafeMath for int256;
 
+    event NewWinner(address indexed account, int96 flowRate);
+    event DropPlayer(address indexed account);
+    event TransferNFT(address indexed to, uint256 indexed tokenId);
+    event AuctionClosed();
+
     struct Bidder {
         uint256 cumulativeTimer;
         uint256 lastSettleAmount;
@@ -82,12 +87,14 @@ contract SuperAuction is Ownable, SuperAppBase {
         if(!isFinish) {
             if(bidders[winner].cumulativeTimer.add(block.timestamp.sub(timestamp)) >= streamTime) {
                 isFinish = true;
-                //emit event
+                emit AuctionClosed();
            }
         }
     }
 
-     //A new Player is always going to top as winner
+    /**************************************************************************
+     * CFA Reative Functions
+     *************************************************************************/
     function _newPlayer(
         address account,
         int96 flowRate,
@@ -97,7 +104,11 @@ contract SuperAuction is Ownable, SuperAppBase {
     isRunning
     returns(bytes memory newCtx)
     {
-        require((flowRate.mul(100,"multiplication error")) >= (winnerFlowRate.mul(100+_step, "multiplication error")), "Auction: FlowRate is not enough");
+        require(
+            (flowRate.mul(100, "Int96SafeMath: multiplication error")) >=
+            (winnerFlowRate.mul(100 + _step, "Int96SafeMath: multiplication error")),
+            "Auction: FlowRate is not enough"
+        );
         require(bidders[account].cumulativeTimer == 0, "Auction: Sorry no rejoins");
         newCtx = ctx;
         bidders[account].cumulativeTimer = 1;
@@ -128,6 +139,7 @@ contract SuperAuction is Ownable, SuperAppBase {
                         if(flowRate > 0) {
                             winnerFlowRate = flowRate;
                             winner = next;
+                            emit NewWinner(winner, flowRate);
                             return _endStream(address(this), next, ctx);
                         }
                         //iterate
@@ -144,10 +156,10 @@ contract SuperAuction is Ownable, SuperAppBase {
         } else {
             if(account != winner) {
                 newCtx = _endStream(address(this), account, ctx);
-                //_withdrawPlayer(account);
+                _withdrawNonWinnerPlayer(account);
             } else {
                 _settleAccount(account, oldTimestamp, oldFlowRate);
-                //_withdrawWinner(account);
+                _withdrawWinner(account);
             }
         }
     }
@@ -164,7 +176,12 @@ contract SuperAuction is Ownable, SuperAppBase {
     returns(bytes memory newCtx)
     {
         (, int96 flowRate) = _getFlowInfo(account);
-        require((flowRate.mul(100, "multiplication error")) >= (winnerFlowRate.mul(100+_step, "multiplication error")), "Auction: FlowRate is not enough");
+        require(
+            (flowRate.mul(100, "Int96SafeMath: multiplication error"))
+            >= (winnerFlowRate.mul(100+_step,
+            "Int96SafeMath: multiplication error")
+            ), "Auction: FlowRate is not enough"
+        );
 
         newCtx = ctx;
         address oldWinner = winner;
@@ -233,6 +250,33 @@ contract SuperAuction is Ownable, SuperAppBase {
      * GateKeeper Functions
      *************************************************************************/
 
+    function _withdrawNonWinnerPlayer(address account) internal {
+        require(isFinish, "Auction: Still running");
+        uint256 settleBalance = bidders[account].lastSettleAmount;
+        bidders[msg.sender].lastSettleAmount = 0;
+        if(_superToken.balanceOf(address(this)) >= settleBalance) {
+            _superToken.transferFrom(address(this), account, settleBalance);
+        }
+    }
+
+    function _withdrawWinner(address account) internal {
+        require(isFinish, "Auction: Still running");
+        //Transfer NFT Token
+    }
+
+    function withdraw() external onlyOwner {
+        require(isFinish, "Auction: Still running");
+        (uint256 timestamp, int96 flowRate) = _getFlowInfo(winner);
+        uint256 lastSettleAmount = bidders[winner].lastSettleAmount;
+        uint256 balance = lastSettleAmount.add(uint256((int256(block.timestamp).sub(int256(timestamp))).mul(flowRate)));
+        assert(_superToken.transferFrom(address(this), owner(), balance));
+    }
+
+    function stopAuction() external onlyOwner isRunning {
+        if(winner == address(0) && !isFinish) {
+            isFinish = true;
+        }
+    }
 
     /**************************************************************************
      * Constant Flow Agreements Functions

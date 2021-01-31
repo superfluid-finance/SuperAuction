@@ -12,7 +12,7 @@ const traveler = require("ganache-time-traveler");
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers").constants;
 const TEST_TRAVEL_TIME = 100; // 24 hours
 
-contract("SuperAuction", accounts => {
+contract("Auction Fuzzy", accounts => {
   const errorHandler = err => {
     if (err) throw err;
   };
