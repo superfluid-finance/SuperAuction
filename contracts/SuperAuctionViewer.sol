@@ -56,7 +56,7 @@ contract SuperAuctionViewer {
 
     function _getViewBidder(address auctionAddress, address account) private view returns(ISuperAuction.ViewBidder memory) {
         ISuperAuction auction = ISuperAuction(auctionAddress);
-        (uint256 timestamp, int96 _flowRate) = _getFlowInfo(
+        (uint256 timestamp, int96 flowRate) = _getFlowInfo(
             auction._cfa(),
             auction._superToken(),
             account,
@@ -66,15 +66,16 @@ contract SuperAuctionViewer {
         uint256 time = cumulativeTimer;
         uint256 balance = lastSettleAmount;
         if(account == auction.winner()){
-          time = cumulativeTimer.add((block.timestamp).sub(timestamp));
-          balance = lastSettleAmount.add(uint256(time).mul(uint256(_flowRate)));
+          uint256 timeDelta = (block.timestamp).sub(timestamp);
+          balance = lastSettleAmount.add(timeDelta.mul(uint256(flowRate)));
+          time = cumulativeTimer.add(timeDelta);
         }
         if(time > auction.streamTime()) {
             timeToWin = 0;
         } else {
             timeToWin = auction.streamTime().sub(time);
         }
-        return ISuperAuction.ViewBidder(account, timeToWin, _flowRate, balance, nextAccount);
+        return ISuperAuction.ViewBidder(account, timeToWin, flowRate, balance, nextAccount);
     }
 
     function _getFlowInfo(

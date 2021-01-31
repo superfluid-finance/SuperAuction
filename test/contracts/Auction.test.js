@@ -262,7 +262,7 @@ contract("SuperAuction", accounts => {
     }
   }
 
-  it("Case #1 - Bob joins new SuperAuction", async () => {
+  it.skip("Case #1 - Bob joins new SuperAuction", async () => {
     const bobFlowInfo = await joinAuction(bob, "10000000");
     console.log(`Bob -> Auction flow : ${bobFlowInfo.flowRate.toString()}`);
     const auctionFlowInfo = await getFlowFromAuction(bob);
@@ -280,7 +280,7 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it("Case #2 - Joining running SuperAuction (insert on top list)", async () => {
+  it.skip("Case #2 - Joining running SuperAuction (insert on top list)", async () => {
     const bobFlowInfo = await joinAuction(bob, "10000000");
     const carolFlowInfo = await joinAuction(carol, "1100000001");
     console.log(`Bob -> Auction flow : ${bobFlowInfo.flowRate.toString()}`);
@@ -323,7 +323,7 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it("Case #3 - (Queue) Swap player SuperAuction (swap elements on list)", async () => {
+  it.skip("Case #3 - (Queue) Swap player SuperAuction (swap elements on list)", async () => {
     let bobFlowInfo = await joinAuction(bob, "10000000");
     let carolFlowInfo = await joinAuction(carol, "1100000001");
     let danFlowInfo = await joinAuction(dan, "5100000000");
@@ -440,7 +440,7 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it("Case #4 - Players dropping auction", async () => {
+  it.skip("Case #4 - Players dropping auction", async () => {
     await joinAuction(bob, "10000000");
     let bobFlowInfo = await dropAuction(bob);
     await assertNoWinner();
@@ -526,9 +526,9 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it("Case # - Player should maintain information when rejoining", async () => {});
+  it.skip("Case # - Player should maintain information when rejoining", async () => {});
 
-  it("Case # - Winner ends the auction", async () => {
+  it.skip("Case # - Winner ends the auction", async () => {
     await joinAuction(bob, "10000000");
     await joinAuction(carol, "1100000001");
     await joinAuction(dan, "5100000000");
@@ -541,9 +541,9 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it("Case # - Winner pays winner bid", async () => {});
+  it.skip("Case # - Winner pays winner bid", async () => {});
 
-  it("Case # - Should finish the auction explicity", async () => {
+  it.skip("Case # - Should finish the auction explicity", async () => {
     await joinAuction(bob, "10000000");
     await joinAuction(carol, "1100000001");
     await joinAuction(dan, "5100000000");

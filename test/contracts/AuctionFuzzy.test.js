@@ -219,7 +219,8 @@ contract("SuperAuction", accounts => {
       sf.host.address,
       sf.agreements.cfa.address,
       daix.address,
-      500
+      500,
+      10
     );
     viewer = await web3tx(Viewer.new, "Deploy SuperAuctionViewer")();
   });
@@ -371,10 +372,6 @@ contract("SuperAuction", accounts => {
     await assertNoLeaks();
     // get sorted list of participants. Prechecks a number of things
     const list = await getAllUsers();
-    console.log(
-      "time since beginning: ",
-      (await web3.eth.getBlock("latest")).timestamps - initialGlobalTime
-    );
     console.log("pos\tuser\tflow\ttime\tfunds\tnext");
     for (var user of list) {
       console.log(
@@ -412,7 +409,8 @@ contract("SuperAuction", accounts => {
   }
 
   async function hasPlayedBefore(account) {
-    return (await app.bidders(account)).cumulativeTimer > 0;
+    const timer = (await app.bidders(account)).cumulativeTimer;
+    return timer !== undefined && timer > 0;
   }
   async function isPlayer(account) {
     var fromUser = (await getFlowFromUser(account)).flowRate;
@@ -427,32 +425,42 @@ contract("SuperAuction", accounts => {
       for (var i = 0; i < 25; i++) {
         const user = accounts[Math.floor(Math.random() * accounts.length)];
         const winner = await app.winner.call();
-        const winnerFlowRate = await app.winnerFlowRate.call();
+        var winnerFlowRate = await app.winnerFlowRate.call();
+        winnerFlowRate = winnerFlowRate.toString() == 0 ? 1 : winnerFlowRate;
         console.log(
           `${userNames[winner]} is current winner, with flowRate: ${winnerFlowRate}`
         );
-        var seed = Math.floor(Math.random() * 2);
+        const finish = await app.isFinish();
+        finish && console.log("looks like auction is finished");
+        const userHasFlow = (await getFlowFromUser(user)).flowRate > 0;
+        var seed = Math.floor(Math.random() * 9);
         switch (seed) {
           case 1: //user becomes the winner
-            if ((await getFlowFromUser(user)).flowRate > 0) {
+            if (userHasFlow) {
               console.log(`${userNames[user]} is deleting flow`);
               await dropAuction(user);
               break;
             }
           default:
-            if (await isPlayer(user)) {
+            if ((await isPlayer(user)) && !finish) {
               console.log(`${userNames[user]} is updating flow`);
-              await updateAuction(user, Number(winnerFlowRate) + 10);
-            } else {
+              await updateAuction(
+                user,
+                Math.ceil(Number(winnerFlowRate) * 1.1)
+              );
+            } else if (!(await hasPlayedBefore(user))) {
               console.log(`${userNames[user]} is creating flow`);
-              await joinAuction(user, Number(winnerFlowRate) + 10);
+              await joinAuction(user, Math.ceil(Number(winnerFlowRate) * 1.1));
+            } else if (finish && userHasFlow) {
+              console.log("auction finished, ", userNames[user], " is leaving");
+              await dropAuction(user);
             }
         }
         // move time
-        await timeTravelOnce();
         // print stuff
 
         // check stuff
+        await timeTravelOnce();
         await assertEverything();
       }
     }).timeout(10000000);
