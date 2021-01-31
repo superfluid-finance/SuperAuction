@@ -111,7 +111,6 @@ contract SuperAuction is Ownable, SuperAppBase {
         //emit event
     }
 
-
     //TODO: refactor
     function _dropPlayer(address account, uint256 oldTimestamp, int96 oldFlowRate, bytes memory ctx) internal returns(bytes memory newCtx) {
         newCtx = ctx;
@@ -185,11 +184,9 @@ contract SuperAuction is Ownable, SuperAppBase {
             address previousAccount = abi.decode(_host.decodeCtx(ctx).userData, (address));
             require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
             bidders[previousAccount].nextAccount = bidders[account].nextAccount;
-            if(oldFlowRate > 0) {
-                newCtx = _endStream(address(this), account, ctx);
-            }
-            (, int96 _flowRate) = _getFlowInfo(oldWinner);
-            newCtx = _startStream(oldWinner, _flowRate, newCtx);
+            newCtx = _endStream(address(this), account, ctx);
+            (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner);
+            newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
             bidders[account].nextAccount = oldWinner;
             winner = account;
         }
@@ -236,7 +233,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     )
     internal
     {
-          (uint256  settleBalance, uint256 cumulativeTimer) = getSettleInfo(account, cbTimestamp, cbFlowRate);
+          (uint256 settleBalance, uint256 cumulativeTimer) = getSettleInfo(account, cbTimestamp, cbFlowRate);
           bidders[account].cumulativeTimer = bidders[account].cumulativeTimer.add(cumulativeTimer);
           bidders[account].lastSettleAmount = bidders[account].lastSettleAmount.add(settleBalance);
     }
