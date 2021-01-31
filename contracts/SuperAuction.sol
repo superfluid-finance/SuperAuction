@@ -172,32 +172,34 @@ contract SuperAuction is Ownable, SuperAppBase {
         bytes memory ctx
     )
     internal
-    isRunning
     returns(bytes memory newCtx)
     {
-        (, int96 flowRate) = _getFlowInfo(account);
-        require(
-            (flowRate.mul(100, "Int96SafeMath: multiplication error"))
-            >= (winnerFlowRate.mul(100+_step,
-            "Int96SafeMath: multiplication error")
-            ), "Auction: FlowRate is not enough"
-        );
+        finishAuction();
+        if(!isFinish) {
+            (, int96 flowRate) = _getFlowInfo(account);
+                    require(
+                        (flowRate.mul(100, "Int96SafeMath: multiplication error"))
+                        >= (winnerFlowRate.mul(100+_step,
+                        "Int96SafeMath: multiplication error")
+                        ), "Auction: FlowRate is not enough"
+                    );
 
-        newCtx = ctx;
-        address oldWinner = winner;
+                    newCtx = ctx;
+                    address oldWinner = winner;
 
-        if(account != winner) {
-            address previousAccount = abi.decode(_host.decodeCtx(ctx).userData, (address));
-            require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
-            bidders[previousAccount].nextAccount = bidders[account].nextAccount;
-            (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner);
-            newCtx = _endStream(address(this), account, newCtx);
-            newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
-            bidders[account].nextAccount = oldWinner;
-            winner = account;
+                    if(account != winner) {
+                        address previousAccount = abi.decode(_host.decodeCtx(ctx).userData, (address));
+                        require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
+                        bidders[previousAccount].nextAccount = bidders[account].nextAccount;
+                        (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner);
+                        newCtx = _endStream(address(this), account, newCtx);
+                        newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
+                        bidders[account].nextAccount = oldWinner;
+                        winner = account;
+                    }
+                    _settleAccount(oldWinner, oldTimestamp, oldFlowRate);
+                    winnerFlowRate = flowRate;
         }
-        _settleAccount(oldWinner, oldTimestamp, oldFlowRate);
-        winnerFlowRate = flowRate;
     }
 
     function _getFlowInfo(

@@ -322,7 +322,7 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it.only("Case #3 - (Queue) Swap player SuperAuction (swap elements on list)", async () => {
+  it("Case #3 - (Queue) Swap player SuperAuction (swap elements on list)", async () => {
     let bobFlowInfo = await joinAuction(bob, "10000000");
     let carolFlowInfo = await joinAuction(carol, "1100000001");
     let danFlowInfo = await joinAuction(dan, "5100000000");
@@ -540,8 +540,6 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it("Case # - Winner pays winner bid", async () => {});
-
   it("Case # - Should finish the auction explicity", async () => {
     await joinAuction(bob, "10000000");
     await joinAuction(carol, "1100000001");
@@ -553,5 +551,12 @@ contract("SuperAuction", accounts => {
       await app.isFinish.call(),
       "Auction should finish after correct request"
     );
+  });
+
+  it("Case # - Winner pays winner bid", async () => {
+    await joinAuction(alice, "15150000000");
+    await timeTravelOnce(3600 * 25);
+    await app.finishAuction();
+
   });
 });
