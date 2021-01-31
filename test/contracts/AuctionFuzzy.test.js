@@ -12,7 +12,7 @@ const traveler = require("ganache-time-traveler");
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers").constants;
 const TEST_TRAVEL_TIME = 100; // 24 hours
 
-contract("SuperAuction", accounts => {
+contract("Auction Fuzzy", accounts => {
   const errorHandler = err => {
     if (err) throw err;
   };
@@ -45,7 +45,9 @@ contract("SuperAuction", accounts => {
 
   async function joinAuction(account, flowRate) {
     const data = await app.bidders(account);
-    if (data.cumulativeTimer.toString() !== "0") {
+    if (
+      data.nextAccount.toString().toLowerCase() !== ZERO_ADDRESS.toLowerCase()
+    ) {
       console.log(`${userNames[account]} is rejoining`);
     }
 
@@ -419,7 +421,7 @@ contract("SuperAuction", accounts => {
   }
 
   describe("Fuzzy testing", async function() {
-    it("Case #6 - Random testing", async () => {
+    it("Case #999 - Random testing", async () => {
       initialGlobalTime = await (await web3.eth.getBlock("latest")).timestamp;
       const appInitialBalance = await daix.balanceOf(app.address);
       for (var i = 0; i < 25; i++) {
