@@ -36,16 +36,13 @@ contract SuperAuctionViewer {
         ISuperAuction auction = ISuperAuction(auctionAddress);
         address winner = auction.winner();
 
-        winner = winner;
         if(winner == address(0)) {
             return top;
         }
-
-        //Winner if always on top
-        top[0] = _getViewBidder(auctionAddress, winner);
         address _bidder = winner;
         uint256 j;
-        for(uint256 i = 0; i < 100; i++) {
+        top[0] = _getViewBidder(auctionAddress, winner);
+        for(uint256 i = 0; i < 10000; i++) {
             if(i > listFrom && i < listTo) {
                 j++;
                 (, , _bidder) = auction.bidders(_bidder);
@@ -65,16 +62,19 @@ contract SuperAuctionViewer {
             account,
             auctionAddress);
         uint256 timeToWin;
-        (uint256 cumulativeTimer, ,) = auction.bidders(account);
-        if(cumulativeTimer > auction.streamTime()) {
+        (uint256 cumulativeTimer, uint256 lastSettleAmount, address nextAccount) = auction.bidders(account);
+        uint256 time = cumulativeTimer;
+        uint256 balance = lastSettleAmount;
+        if(account == auction.winner()){
+          time = cumulativeTimer.add((block.timestamp).sub(timestamp));
+          balance = lastSettleAmount.add(uint256(time).mul(uint256(_flowRate)));
+        }
+        if(time > auction.streamTime()) {
             timeToWin = 0;
         } else {
-            timeToWin = auction.streamTime().sub(cumulativeTimer);
+            timeToWin = auction.streamTime().sub(time);
         }
-        (,uint256 lastSettleAmount,) = auction.bidders(account);
-        uint256 balance = lastSettleAmount.add(uint256((int256(block.timestamp).sub(int256(timestamp))).mul(_flowRate)));
-        return ISuperAuction.ViewBidder(account, timeToWin, _flowRate, balance);
-
+        return ISuperAuction.ViewBidder(account, timeToWin, _flowRate, balance, nextAccount);
     }
 
     function _getFlowInfo(
