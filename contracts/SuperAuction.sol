@@ -191,8 +191,8 @@ contract SuperAuction is Ownable, SuperAppBase {
             require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
             bidders[previousAccount].nextAccount = bidders[account].nextAccount;
             (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner);
-            newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
             newCtx = _endStream(address(this), account, newCtx);
+            newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
             bidders[account].nextAccount = oldWinner;
             winner = account;
         }
