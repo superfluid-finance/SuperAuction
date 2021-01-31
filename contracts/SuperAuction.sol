@@ -44,7 +44,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     uint256 public immutable streamTime;
     address public winner;
     int96 public winnerFlowRate;
-    address private _tail;
+    address public _tail;
 
     bool public isFinish;
     mapping(address => Bidder) public bidders;
@@ -72,27 +72,20 @@ contract SuperAuction is Ownable, SuperAppBase {
         uint256 configWord =
             SuperAppDefinitions.APP_LEVEL_FINAL |
             SuperAppDefinitions.BEFORE_AGREEMENT_CREATED_NOOP;
-            //SuperAppDefinitions.BEFORE_AGREEMENT_TERMINATED_NOOP;
 
         _host.registerApp(configWord);
     }
 
-    function finishAuction() external {
-        isFinish = true;
-        if(winner != address(0) && !isFinish) {
+    function finishAuction() public {
+        if(winner != address(0)) {
             (uint256 timestamp, ) = _getFlowInfo(winner);
-            uint256 diff = block.timestamp > timestamp ? block.timestamp.sub(timestamp) : 0;
-            if(bidders[winner].cumulativeTimer.add(diff) >= streamTime) {
-                isFinish = true;
-                //emit event
-            }
+            _endAuction(timestamp);
         }
     }
 
     function _endAuction(uint256 timestamp) internal {
-        if(winner != address(0) && !isFinish) {
-            uint256 diff = block.timestamp > timestamp ? block.timestamp.sub(timestamp) : 0;
-            if(bidders[winner].cumulativeTimer.add(diff) >= streamTime) {
+        if(!isFinish) {
+            if(bidders[winner].cumulativeTimer.add(block.timestamp.sub(timestamp)) >= streamTime) {
                 isFinish = true;
                 //emit event
            }
@@ -106,6 +99,7 @@ contract SuperAuction is Ownable, SuperAppBase {
         bytes memory ctx
     )
     internal
+    isRunning
     returns(bytes memory newCtx)
     {
         require(flowRate > winnerFlowRate, "Auction: FlowRate is not enough");
@@ -113,12 +107,13 @@ contract SuperAuction is Ownable, SuperAppBase {
         if(bidders[account].cumulativeTimer == 0) {
             bidders[account].cumulativeTimer = 1;
         }
-        bidders[account].nextAccount = winner;
+        bidders[account].nextAccount = (winner == address(0) ? _tail : winner);
         if(winner != address(0)) {
+            _settleAccount(winner, 0, 0);
             newCtx = _startStream(winner, winnerFlowRate, ctx);
-            if(_tail == address(0)) {
-                _tail = winner;
-            }
+        }
+        if(_tail == address(0)) {
+            _tail = account;
         }
         winner = account;
         winnerFlowRate = flowRate;
@@ -127,11 +122,12 @@ contract SuperAuction is Ownable, SuperAppBase {
 
 
     //TODO: refactor
-    function _dropPlayer(address account, uint256 timestamp, bytes memory ctx) internal returns(bytes memory newCtx) {
+    function _dropPlayer(address account, uint256 oldTimestamp, int96 oldFlowRate, bytes memory ctx) internal returns(bytes memory newCtx) {
         newCtx = ctx;
-        _endAuction(timestamp);
+        _endAuction(oldTimestamp);
         if(!isFinish) {
             if(account == winner) {
+                _settleAccount(account, oldTimestamp, oldFlowRate);
                 //Only one bidder and is dropping
                 if(bidders[winner].nextAccount == address(0)) {
                     delete winner;
@@ -139,16 +135,18 @@ contract SuperAuction is Ownable, SuperAppBase {
                 } else {
                     address _winner =  winner;
                     int96 flowRate;
-
                     do {
                         account = bidders[_winner].nextAccount;
                         if(account != address(0)) {
                             (, flowRate) = _getFlowInfo(account);
                             if(flowRate > 0) {
+                                bidders[winner].nextAccount = address(0);
+                                if(_tail != winner) {
+                                    bidders[_tail].nextAccount = winner;
+                                    _tail = winner;
+                                }
                                 winner  = account;
                                 winnerFlowRate = flowRate;
-                                bidders[_tail].nextAccount = winner;
-                                _tail = winner;
                                 return _endStream(address(this), winner, ctx);
                             }
                         }
@@ -164,15 +162,13 @@ contract SuperAuction is Ownable, SuperAppBase {
             } else {
                 newCtx = _endStream(address(this), account, ctx);
             }
-            //Withdraw phase
+        //Withdraw phase
         } else {
             if(account != winner) {
                 newCtx = _endStream(address(this), account, ctx);
                 //_withdrawSettleBalance(account);
             } else {
-                (uint256  settleBalance, uint256 cumulativeTimer) = getSettleInfo(winner, 0, 0);
-                bidders[winner].cumulativeTimer = bidders[winner].cumulativeTimer.add(cumulativeTimer);
-                bidders[winner].lastSettleAmount = bidders[winner].lastSettleAmount.add(settleBalance);
+                _settleAccount(account, oldTimestamp, oldFlowRate);
             }
         }
     }
@@ -185,9 +181,9 @@ contract SuperAuction is Ownable, SuperAppBase {
         bytes memory ctx
     )
     internal
+    isRunning
     returns(bytes memory newCtx)
     {
-        require(!isFinish, "Auction: Not running Auction");
         (, int96 flowRate) = _getFlowInfo(account);
         require(flowRate > winnerFlowRate, "Auction: FlowRate is not enough");
 
@@ -200,7 +196,9 @@ contract SuperAuction is Ownable, SuperAppBase {
             address previousAccount = abi.decode(_host.decodeCtx(ctx).userData, (address));
             require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
             bidders[previousAccount].nextAccount = bidders[account].nextAccount;
-            newCtx = _endStream(address(this), account, ctx);
+            if(oldFlowRate > 0) {
+                newCtx = _endStream(address(this), account, ctx);
+            }
             (, int96 _flowRate) = _getFlowInfo(oldWinner);
             newCtx = _startStream(oldWinner, _flowRate, newCtx);
             bidders[account].nextAccount = oldWinner;
@@ -212,7 +210,62 @@ contract SuperAuction is Ownable, SuperAppBase {
         winnerFlowRate = flowRate;
     }
 
-    //agreement functions
+    function _getFlowInfo(
+        address sender
+    )
+    internal
+    view
+    returns (uint256 timestamp, int96 flowRate)
+    {
+        (timestamp, flowRate , ,) = _cfa.getFlow(_superToken, sender, address(this));
+    }
+
+    function getSettleInfo(
+        address account,
+        uint256 oldTimestamp,
+        int96 oldFlowRate
+    )
+    public
+    view
+    returns(
+        uint256 settleBalance,
+        uint256 cumulativeTimer
+    )
+    {
+        if(oldTimestamp > 0 && oldFlowRate > 0) {
+            cumulativeTimer = (block.timestamp).sub(oldTimestamp);
+            settleBalance = cumulativeTimer.mul(uint256(oldFlowRate));
+        } else {
+            (uint256 timestamp, int96 flowRate) = _getFlowInfo(account);
+            cumulativeTimer = (block.timestamp).sub(timestamp);
+            settleBalance = cumulativeTimer.mul(uint256(flowRate));
+        }
+    }
+
+    function _settleAccount(
+        address account,
+        uint256 cbTimestamp,
+        int96 cbFlowRate
+    )
+    internal
+    {
+          (uint256  settleBalance, uint256 cumulativeTimer) = getSettleInfo(account, cbTimestamp, cbFlowRate);
+          bidders[account].cumulativeTimer = bidders[account].cumulativeTimer.add(cumulativeTimer);
+          bidders[account].lastSettleAmount = bidders[account].lastSettleAmount.add(settleBalance);
+    }
+
+
+
+    /**************************************************************************
+     * GateKeeper Functions
+     *************************************************************************/
+
+
+
+
+    /**************************************************************************
+     * Constant Flow Agreements Functions
+     *************************************************************************/
     function _startStream(address account, int96 flowRate, bytes memory ctx) internal returns(bytes memory newCtx) {
         (newCtx, ) = _host.callAgreementWithContext(
             _cfa,
@@ -252,7 +305,9 @@ contract SuperAuction is Ownable, SuperAppBase {
     }
 
     function _endStream(address sender, address receiver, bytes memory ctx) internal returns(bytes memory newCtx) {
-        if(ctx.length > 0) {
+        newCtx = ctx;
+        (, int96 flowRate , ,) = _cfa.getFlow(_superToken, sender, receiver);
+        if(ctx.length > 0 && flowRate > 0) {
             (newCtx, ) = _host.callAgreementWithContext(
                 _cfa,
                 abi.encodeWithSelector(
@@ -265,7 +320,7 @@ contract SuperAuction is Ownable, SuperAppBase {
                 "0x",
                 ctx
             );
-        } else {
+        } else if(flowRate > 0) {
             _host.callAgreement(
                 _cfa,
                 abi.encodeWithSelector(
@@ -281,41 +336,9 @@ contract SuperAuction is Ownable, SuperAppBase {
         }
     }
 
-    function _getFlowInfo(
-        address sender
-    )
-    internal
-    view
-    returns (uint256 timestamp, int96 flowRate)
-    {
-        (timestamp, flowRate , ,) = _cfa.getFlow(_superToken, sender, address(this));
-    }
-
-    function getSettleInfo(
-        address account,
-        uint256 oldTimestamp,
-        int96 oldFlowRate
-    )
-    public
-    view
-    returns(
-        uint256 settleBalance,
-        uint256 cumulativeTimer
-    )
-    {
-        if(oldTimestamp > 0 && oldFlowRate > 0) {
-            cumulativeTimer = (block.timestamp).sub(oldTimestamp);
-            settleBalance = cumulativeTimer.mul(uint256(oldFlowRate));
-        } else {
-            (uint256 timestamp, int96 flowRate) = _getFlowInfo(account);
-            cumulativeTimer = (block.timestamp).sub(timestamp);
-            settleBalance = cumulativeTimer.mul(uint256(flowRate));
-        }
-    }
-
-    /*
-     * Callbacks
-     */
+    /**************************************************************************
+     * SuperApp callbacks
+     *************************************************************************/
 
     function afterAgreementCreated(
         ISuperToken /*superToken*/,
@@ -332,12 +355,12 @@ contract SuperAuction is Ownable, SuperAppBase {
     returns (bytes memory newCtx)
     {
         address account = _host.decodeCtx(ctx).msgSender;
-        //if(bidders[account].cumulativeTimer > 0) {
-        //    return _updatePlayer(account, 0, 0, ctx);
-        //} else {
-        (, int96 flowRate) = _getFlowInfo(account);
-        return _newPlayer(account, flowRate, ctx);
-        //}
+        if(bidders[account].cumulativeTimer > 0) {
+            return _updatePlayer(account, 0, 0, ctx);
+        } else {
+            (, int96 flowRate) = _getFlowInfo(account);
+            return _newPlayer(account, flowRate, ctx);
+        }
     }
 
     function beforeAgreementUpdated(
@@ -392,10 +415,9 @@ contract SuperAuction is Ownable, SuperAppBase {
     {
         if(_isSameToken(superToken) && _isCFAv1(agreementClass)) {
             address account = _host.decodeCtx(ctx).msgSender;
-            (uint256 timestamp, ) = _getFlowInfo(account);
-            cbdata = abi.encode(timestamp);
+            (uint256 timestamp, int96 flowRate) = _getFlowInfo(account);
+            cbdata = abi.encode(timestamp, flowRate);
         }
-        return ctx;
     }
 
      function afterAgreementTerminated(
@@ -412,8 +434,8 @@ contract SuperAuction is Ownable, SuperAppBase {
     returns (bytes memory newCtx) {
         if(_isSameToken(superToken) && _isCFAv1(agreementClass)) {
             address account = _host.decodeCtx(ctx).msgSender;
-            uint256 timestamp = abi.decode(cbdata, (uint256));
-            return _dropPlayer(account, timestamp, ctx);
+            (uint256 timestamp, int96 flowRate) = abi.decode(cbdata, (uint256, int96));
+            return _dropPlayer(account, timestamp, flowRate, ctx);
         }
         return ctx;
     }

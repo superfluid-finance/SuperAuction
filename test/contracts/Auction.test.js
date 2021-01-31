@@ -43,9 +43,15 @@ contract("SuperAuction", accounts => {
     }
 
     async function joinAuction(account, flowRate) {
-        const previousPlayerAddress = (await getPreviousPlayer(account));
+        const data = await app.bidders(account);
+        if(data.cumulativeTimer.toString() !== "0") {
+            console.log(`${userNames[account]} is rejoining`);
+        }
+
+        const previousPlayerAddress = (await getPreviousPlayerUnfiltered(account)).account;
         let userData;
-        if (previousPlayerAddress !== undefined && previousPlayerAddress.account !== undefined) {
+        if (previousPlayerAddress !== undefined) {
+            console.log(previousPlayerAddress);
             userData = await web3.eth.abi.encodeParameters(
                 ["address"],
                 [
@@ -135,6 +141,22 @@ contract("SuperAuction", accounts => {
         return await viewer.getBiddersAddresses(app.address, 0, 100);
     }
 
+    async function getPlayerPositionUnfiltered(account) {
+        const scoreboard = await getListTop100();
+        for(let i = 0; i < scoreboard.length; i++) {
+            if(scoreboard[i].account == account) {
+                return (i);
+            }
+        }
+        return 0;
+    }
+
+    async function getPreviousPlayerUnfiltered(account) {
+        const pos = await getPlayerPositionUnfiltered(account);
+        console.log("Unfilter positon:", pos);
+        return pos == 0 ? ZERO_ADDRESS :  (await getListTop100())[pos - 1];
+    }
+
     async function getPlayerPosition(account) {
         const scoreboard = await getListTop100();
 
@@ -222,7 +244,7 @@ contract("SuperAuction", accounts => {
 
     async function assertTablePositions(orderUsers) {
         for(let i = 0; i < orderUsers.length; i++) {
-            assert.ok((await checkPosition(orderUsers[i], i+1)), `${userNames[orderUsers[i]]} not in fist place on listTop`);
+            assert.ok((await checkPosition(orderUsers[i], i+1)), `${userNames[orderUsers[i]]} not in right place listTop`);
         }
     }
 
@@ -337,8 +359,10 @@ contract("SuperAuction", accounts => {
         let bobFlowInfo = await dropAuction(bob);
         await assertNoWinner();
         assert.equal(bobFlowInfo.flowRate, "0", "Bob should not be streaming to auction");
-        bobFlowInfo = await joinAuction(bob, "10000000");
+        await joinAuction(bob, "100000001111111");
         let carolFlowInfo = await joinAuction(carol, "1100000001");
+        await joinAuction(bob, "100000001111111");
+        /*
         await assertUserWinner(carolFlowInfo);
         let auctionFlowInfoToBob = await getFlowFromAuction(bob);
         let auctionFlowInfoToCarol = await getFlowFromAuction(carol);
@@ -355,9 +379,11 @@ contract("SuperAuction", accounts => {
         await dropAuction(bob);
         await assertTablePositions([alice, carol]);
         await assertUserWinner(aliceFlowInfo);
+        console.log(await getListTop100());
+        */
     });
 
-    //Check winner update self balance, check if winner stops being winners
+    //Check winner update self balance, check if winner stops being winner
     it.skip("Case #5 - Players should maintain correct information", async () => {
         const bob1Flow = toBN(10000000);
         const bob2Flow = toBN(6150000000);
@@ -409,10 +435,10 @@ contract("SuperAuction", accounts => {
         await joinAuction(bob, "10000000");
         await joinAuction(carol, "1100000001");
         await joinAuction(dan, "5100000000");
-        await timeTravelOnce(3600);
+        await joinAuction(alice, "5150000000");
+        await timeTravelOnce(3600 * 25);
         await dropAuction(dan);
-        const finish = await app.isFinish.call();
-        assert.ok(finish, "Auction should finish after correct request");
+        assert.ok(await app.isFinish.call(), "Auction should finish after correct request");
     });
 
     it("Case # - Winner pays winner bid", async () => {});
@@ -424,7 +450,6 @@ contract("SuperAuction", accounts => {
         await joinAuction(alice, "5150000000");
         await timeTravelOnce(3600 * 25);
         await app.finishAuction();
-        const finish = await app.isFinish.call();
-        assert.ok(finish, "Auction should finish after correct request");
+        assert.ok(await app.isFinish.call(), "Auction should finish after correct request");
     });
 });

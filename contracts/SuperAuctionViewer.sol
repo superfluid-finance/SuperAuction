@@ -36,13 +36,16 @@ contract SuperAuctionViewer {
         ISuperAuction auction = ISuperAuction(auctionAddress);
         address winner = auction.winner();
 
+        winner = winner == address(0) ? auction._tail() : winner;
         if(winner == address(0)) {
             return top;
         }
+
+        //Winner if always on top
+        top[0] = _getViewBidder(auctionAddress, winner);
         address _bidder = winner;
         uint256 j;
-        top[0] = _getViewBidder(auctionAddress, winner);
-        for(uint256 i = 0; i < 10000; i++) {
+        for(uint256 i = 0; i < 100; i++) {
             if(i > listFrom && i < listTo) {
                 j++;
                 (, , _bidder) = auction.bidders(_bidder);
