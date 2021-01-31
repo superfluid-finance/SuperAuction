@@ -37,6 +37,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     uint256 public immutable streamTime;
     address public winner;
     int96 public winnerFlowRate;
+    int96 public _step;
 
     bool public isFinish;
     mapping(address => Bidder) public bidders;
@@ -49,7 +50,8 @@ contract SuperAuction is Ownable, SuperAppBase {
         ISuperfluid host,
         IConstantFlowAgreementV1 cfa,
         ISuperToken superToken,
-        uint256 winnerTime
+        uint256 winnerTime,
+        int96 step
     ) {
         require(address(host) != address(0), "Auction: host is empty");
         require(address(cfa) != address(0), "Auction: cfa is empty");
@@ -60,6 +62,7 @@ contract SuperAuction is Ownable, SuperAppBase {
         _cfa = cfa;
         _superToken = superToken;
         streamTime = winnerTime;
+        _step = step; //percentage
 
         uint256 configWord =
             SuperAppDefinitions.APP_LEVEL_FINAL |
@@ -94,7 +97,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     isRunning
     returns(bytes memory newCtx)
     {
-        require(flowRate > winnerFlowRate, "Auction: FlowRate is not enough");
+        require((flowRate.mul(100)) > (winnerFlowRate.mul(100+_step)), "Auction: FlowRate is not enough");
         require(bidders[account].cumulativeTimer == 0, "Auction: Sorry no rejoins");
         newCtx = ctx;
         bidders[account].cumulativeTimer = 1;
@@ -173,7 +176,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     returns(bytes memory newCtx)
     {
         (, int96 flowRate) = _getFlowInfo(account);
-        require(flowRate > winnerFlowRate, "Auction: FlowRate is not enough");
+        require((flowRate.mul(100)) > (winnerFlowRate.mul(100+_step)), "Auction: FlowRate is not enough");
 
         newCtx = ctx;
         address oldWinner = winner;
@@ -244,7 +247,7 @@ contract SuperAuction is Ownable, SuperAppBase {
      * GateKeeper Functions
      *************************************************************************/
 
-    
+
     /**************************************************************************
      * Constant Flow Agreements Functions
      *************************************************************************/
