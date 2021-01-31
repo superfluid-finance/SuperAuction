@@ -309,7 +309,7 @@ contract("SuperAuction", accounts => {
       "Carol should receive the same flow"
     );
     await assertTablePositions([dan, carol, bob]);
-    const aliceFlowInfo = await joinAuction(alice, "5150000000");
+    const aliceFlowInfo = await joinAuction(alice, "580000000");
     console.log(`Alice -> Auction flow : ${bobFlowInfo.flowRate.toString()}`);
     auctionFlowInfoToBob = await getFlowFromAuction(bob);
     auctionFlowInfoToCarol = await getFlowFromAuction(carol);
@@ -327,7 +327,7 @@ contract("SuperAuction", accounts => {
     let bobFlowInfo = await joinAuction(bob, "10000000");
     let carolFlowInfo = await joinAuction(carol, "1100000001");
     let danFlowInfo = await joinAuction(dan, "5100000000");
-    let aliceFlowInfo = await joinAuction(alice, "5150000000");
+    let aliceFlowInfo = await joinAuction(alice, "5800000000");
     let auctionFlowInfoToBob = await getFlowFromAuction(bob);
     let auctionFlowInfoToCarol = await getFlowFromAuction(carol);
     let auctionFlowInfoToDan = await getFlowFromAuction(dan);
@@ -355,7 +355,7 @@ contract("SuperAuction", accounts => {
     );
     //Bob from last to top
     //await timeTravelOnce(3600 * 2);
-    bobFlowInfo = await updateAuction(bob, "6150000000");
+    bobFlowInfo = await updateAuction(bob, "6850000000");
     auctionFlowInfoToBob = await getFlowFromAuction(bob);
     auctionFlowInfoToCarol = await getFlowFromAuction(carol);
     auctionFlowInfoToDan = await getFlowFromAuction(dan);
@@ -383,7 +383,7 @@ contract("SuperAuction", accounts => {
       "Dan should receive the same flow"
     );
     //Alice from second to top
-    aliceFlowInfo = await updateAuction(alice, "6154000000");
+    aliceFlowInfo = await updateAuction(alice, "7154000000");
     auctionFlowInfoToBob = await getFlowFromAuction(bob);
     auctionFlowInfoToCarol = await getFlowFromAuction(carol);
     auctionFlowInfoToDan = await getFlowFromAuction(dan);
@@ -411,7 +411,7 @@ contract("SuperAuction", accounts => {
       "Dan should receive the same flow"
     );
     //Carol third to top
-    carolFlowInfo = await updateAuction(carol, "6154200000");
+    carolFlowInfo = await updateAuction(carol, "8154200000");
     auctionFlowInfoToBob = await getFlowFromAuction(bob);
     auctionFlowInfoToCarol = await getFlowFromAuction(carol);
     auctionFlowInfoToDan = await getFlowFromAuction(dan);
@@ -451,7 +451,7 @@ contract("SuperAuction", accounts => {
     );
     await assertUserWinner(await joinAuction(carol, "1100000001"));
     await assertUserWinner(await joinAuction(dan, "5100000000"));
-    let aliceFlowInfo = await joinAuction(alice, "5150000000");
+    let aliceFlowInfo = await joinAuction(alice, "570000000");
     await assertUserWinner(aliceFlowInfo);
     await assertTablePositions([alice, dan, carol]);
     await dropAuction(dan);

@@ -97,7 +97,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     isRunning
     returns(bytes memory newCtx)
     {
-        require((flowRate.mul(100)) > (winnerFlowRate.mul(100+_step)), "Auction: FlowRate is not enough");
+        require((flowRate.mul(100,"multiplication error")) >= (winnerFlowRate.mul(100+_step, "multiplication error")), "Auction: FlowRate is not enough");
         require(bidders[account].cumulativeTimer == 0, "Auction: Sorry no rejoins");
         newCtx = ctx;
         bidders[account].cumulativeTimer = 1;
@@ -164,7 +164,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     returns(bytes memory newCtx)
     {
         (, int96 flowRate) = _getFlowInfo(account);
-        require((flowRate.mul(100)) > (winnerFlowRate.mul(100+_step)), "Auction: FlowRate is not enough");
+        require((flowRate.mul(100, "multiplication error")) >= (winnerFlowRate.mul(100+_step, "multiplication error")), "Auction: FlowRate is not enough");
 
         newCtx = ctx;
         address oldWinner = winner;
@@ -175,7 +175,7 @@ contract SuperAuction is Ownable, SuperAppBase {
             bidders[previousAccount].nextAccount = bidders[account].nextAccount;
             (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner);
             newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
-            newCtx = _endStream(address(this), account, ctx);
+            newCtx = _endStream(address(this), account, newCtx);
             bidders[account].nextAccount = oldWinner;
             winner = account;
         }
