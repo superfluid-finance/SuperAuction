@@ -119,43 +119,32 @@ contract SuperAuction is Ownable, SuperAppBase {
             if(account == winner) {
                 _settleAccount(account, oldTimestamp, oldFlowRate);
                 //Only one bidder and is dropping
-                if(bidders[winner].nextAccount == address(0)) {
-                    delete winner;
-                    delete winnerFlowRate;
-                } else {
-
-                    address next =  bidders[winner].nextAccount;
-                    address previous = winner;
+                if(bidders[winner].nextAccount != address(0)) {
+                    address next = bidders[winner].nextAccount;
+                    delete bidders[winner].nextAccount;
                     int96 flowRate;
-
                     while(next != address(0)) {
                         (, flowRate) = _getFlowInfo(next);
                         if(flowRate > 0) {
-                            bidders[previous].nextAccount = bidders[next].nextAccount;
-                            bidders[next].nextAccount = winner;
-                            bidders[winner].nextAccount = previous;
-                            winner  = next;
                             winnerFlowRate = flowRate;
+                            winner = next;
                             return _endStream(address(this), next, ctx);
                         }
-
-                        previous = next;
+                        //iterate
                         next = bidders[next].nextAccount;
                     }
-
-                    //there is no winner in queue
-                    delete winner;
-                    delete winnerFlowRate;
                 }
+                //there is no winner in queue
+                delete winner;
+                delete winnerFlowRate;
             } else {
                 newCtx = _endStream(address(this), account, ctx);
+                //Maybe delete their time.
             }
-
-        //Withdraw phase
         } else {
             if(account != winner) {
                 newCtx = _endStream(address(this), account, ctx);
-                _withdrawPlayer(account);
+                //_withdrawPlayer(account);
             } else {
                 _settleAccount(account, oldTimestamp, oldFlowRate);
                 //_withdrawWinner(account);
@@ -184,9 +173,9 @@ contract SuperAuction is Ownable, SuperAppBase {
             address previousAccount = abi.decode(_host.decodeCtx(ctx).userData, (address));
             require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
             bidders[previousAccount].nextAccount = bidders[account].nextAccount;
-            newCtx = _endStream(address(this), account, ctx);
             (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner);
             newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
+            newCtx = _endStream(address(this), account, ctx);
             bidders[account].nextAccount = oldWinner;
             winner = account;
         }

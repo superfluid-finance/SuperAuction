@@ -17,6 +17,7 @@ interface  ISuperAuction {
         uint256 timeToWin;
         int96 flowRate;
         uint256 balance;
+        address nextAccount;
     }
 
     function _cfa() external view returns (IConstantFlowAgreementV1);
