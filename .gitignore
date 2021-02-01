@@ -4,6 +4,5 @@ package-lock.json
 .vscode/settings.json
 build
 .coverage_artifacts
-coverage/
 
 *.code-workspace
