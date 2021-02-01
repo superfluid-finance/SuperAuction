@@ -194,7 +194,6 @@ contract("Auction Fuzzy", accounts => {
     });
     await sf.initialize();
     daix = sf.tokens.fDAIx;
-
     if (!dai) {
       const daiAddress = await sf.tokens.fDAI.address;
       dai = await sf.contracts.TestToken.at(daiAddress);
@@ -221,6 +220,7 @@ contract("Auction Fuzzy", accounts => {
       sf.host.address,
       sf.agreements.cfa.address,
       daix.address,
+      "0x00F96712cd4995bCd8647dd9Baa995286e4d5c99", //Fake
       500,
       10
     );

@@ -19,6 +19,7 @@ import {
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/math/SignedSafeMath.sol";
 import "@superfluid-finance/ethereum-contracts/contracts/utils/Int96SafeMath.sol";
@@ -48,6 +49,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
 
     bool public isFinish;
     mapping(address => Bidder) public bidders;
+    IERC721 public nftContract;
 
     ISuperfluid private _host;
     IConstantFlowAgreementV1 public _cfa;
@@ -57,20 +59,23 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         ISuperfluid host,
         IConstantFlowAgreementV1 cfa,
         ISuperToken superToken,
+        IERC721 nft,
         uint256 winnerTime,
         int96 stepBid
     ) {
         require(address(host) != address(0), "Auction: host is empty");
         require(address(cfa) != address(0), "Auction: cfa is empty");
         require(address(superToken) != address(0), "Auction: superToken is empty");
+        require(address(nft) != address(0), "Auction: NFT is empty");
         require(winnerTime > 0, "Auction: Provide a winner stream time");
         require(stepBid > 0 && stepBid <=100, "Auction: Step value wrong" );
 
         _host = host;
         _cfa = cfa;
+        nftContract = nft;
         _superToken = superToken;
         streamTime = winnerTime;
-        step = stepBid; //percentage
+        step = stepBid + 100;
 
         uint256 configWord =
             SuperAppDefinitions.APP_LEVEL_FINAL |
@@ -113,7 +118,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
     {
         require(
             (flowRate.mul(100, "Int96SafeMath: multiplication error")) >=
-            (winnerFlowRate.mul(100 + step, "Int96SafeMath: multiplication error")),
+            (winnerFlowRate.mul(step, "Int96SafeMath: multiplication error")),
             "Auction: FlowRate is not enough"
         );
         require(bidders[account].cumulativeTimer == 0, "Auction: Sorry no rejoins");
@@ -188,8 +193,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
             (, int96 flowRate) = _getFlowInfo(account);
                     require(
                         (flowRate.mul(100, "Int96SafeMath: multiplication error"))
-                        >= (winnerFlowRate.mul(100+step,
-                        "Int96SafeMath: multiplication error")
+                        >= (winnerFlowRate.mul(step,"Int96SafeMath: multiplication error")
                         ), "Auction: FlowRate is not enough"
                     );
 

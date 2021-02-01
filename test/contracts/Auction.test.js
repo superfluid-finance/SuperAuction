@@ -213,10 +213,11 @@ contract("SuperAuction", accounts => {
         );
       }
     }
-    app = await web3tx(SuperAuction.new, "Deploy SuperAuctioncase")(
+    app = await web3tx(SuperAuction.new, "Deploy SuperAuction")(
       sf.host.address,
       sf.agreements.cfa.address,
       daix.address,
+      "0x00F96712cd4995bCd8647dd9Baa995286e4d5c99", //Fake
       86400,
       10
     );
@@ -455,76 +456,39 @@ contract("SuperAuction", accounts => {
     await assertTablePositions([alice, dan, carol]);
     await dropAuction(dan);
     await assertTablePositions([alice, carol]);
-    console.log(await getListTop100());
     await assertUserWinner(aliceFlowInfo);
     await dropAuction(alice);
     assert.equal(await app.winner(), carol, "Carol is not the winner");
   });
 
   //Check winner update self balance, check if winner stops being winner
-  it.only("Case #5 - Players should maintain correct information", async () => {
-    const bobFlow = toBN(10000000);
-    const aliceFlow = toBN(20000000);
-    const danFlow = toBN(30000000);
+  it("Case #5 - Players should maintain correct information", async () => {
+    const bob1Flow = toBN(10000000);
+    const bob2Flow = toBN(15000000);
+    const bob3Flow = toBN(20000000);
+    await joinAuction(bob, bob1Flow.toString());
+    let bobQuery1 = await app.bidders(bob);
 
-    let bobFlowInfo = await joinAuction(bob, bobFlow);
+    assert.equal(bobQuery1.lastSettleAmount.toString(), "0", "Bob - Settle Amount should be zero");
+    assert.equal(bobQuery1.cumulativeTimer.toString(), "0", "Bob - CumulativeTimer should be zero");
+    assert.equal(bobQuery1.nextAccount.toString(), ZERO_ADDRESS, "Bob - next Account should be zero");
+
     await timeTravelOnce(100);
-    let bob1Query = await app.bidders(bob);
+    let bobFlowInfo2 = await updateAuction(bob, bob2Flow);
+    let bobQuery2 = await app.bidders(bob);
 
-/*
-    assert.equal(
-      bobMapInfo1.cumulativeTimer.toString(),
-      "1",
-      "Bob should not have cumulative time"
-    );
-    assert.equal(
-      bobMapInfo1.lastSettleAmount.toString(),
-      "0",
-      "Bob should not have settle balance"
-    );
-    await timeTravelOnce(1800);
+    console.log(bobQuery2.lastSettleAmount.toString());
+    console.log(bobQuery2.cumulativeTimer.toString());
 
-    bobMapInfo = await app.bidders(bob);
-    assert.equal(
-      bobMapInfo1.cumulativeTimer.toString(),
-      "1",
-      "Bob should not have cumulative time"
-    );
-    assert.equal(
-      bobMapInfo1.lastSettleAmount.toString(),
-      "0",
-      "Bob should not have settle balance"
-    );
 
-    bobFlowInfo = await updateAuction(bob, bob2Flow);
-    await timeTravelOnce(1800);
+    await timeTravelOnce(100);
+    let bobFlowInfo3 = await updateAuction(bob, bob3Flow);
+    let bobQuery3 = await app.bidders(bob);
 
-    bobMapInfo1 = await app.bidders(bob);
-    assert.equal(
-      bobMapInfo1.cumulativeTimer.mul(bob1Flow).toString(),
-      bobMapInfo1.lastSettleAmount.add(bob1Flow).toString(),
-      "Bob information is not consistent"
-    );
+    console.log(bobQuery3.lastSettleAmount.toString());
+    console.log(bobQuery3.cumulativeTimer.toString());
 
-    flowInfo = await getFlow(bob, app.address);
-    bobFlowInfo = await updateAuction(bob, bob3Flow);
-    let bobMapInfo2 = await app.bidders(bob);
 
-    console.log(bobMapInfo2.cumulativeTimer.toString());
-    console.log(bobMapInfo2.lastSettleAmount.toString());
-
-    assert.equal(
-      bobMapInfo2.cumulativeTimer.toString(),
-      toBN(3601).toString(),
-      "hdsjfhlaskdjfhasdkj"
-    );
-
-    assert.equal(
-      bobMapInfo.cumulativeTimer.mul(bob2Flow).toString(),
-      bobMapInfo.lastSettleAmount.add(bob2Flow).toString(),
-      "Bob 2 information is not consistent"
-    );
-    */
   });
 
   it("Case # - Winner ends the auction", async () => {
@@ -553,9 +517,28 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it("Case # - Winner pays winner bid", async () => {
-    await joinAuction(alice, "15150000000");
+  it.only("Case # - Winner pays winner bid", async () => {
+    const aliceFlow = toBN("10000000");
+    const aliceTokens1 = await daix.balanceOf(alice);
+    console.log(aliceTokens1.toString());
+    await joinAuction(alice, aliceFlow);
     await timeTravelOnce(3600 * 25);
+    await dropAuction(alice);
+
+    const aliceTokens2 = await daix.balanceOf(alice);
+    const aliceFlowToAuction = await getFlowFromUser(alice);
+    const aliceFlowFromAuction = await getFlowFromAuction(alice);
+    const auctionTokens = await daix.balanceOf(app.address);
+
+    console.log(aliceFlowToAuction.flowRate.toString());
+    console.log(aliceFlowFromAuction.flowRate.toString());
+    console.log(aliceTokens2.add(auctionTokens).toString());
+    console.log(aliceTokens2.toString());
+    console.log(auctionTokens.toString());
+
+    assert.equal(aliceTokens2.add(auctionTokens).toString(), aliceTokens1.toString(), "Auction is printing money");
+
     await app.finishAuction();
+
   });
 });
