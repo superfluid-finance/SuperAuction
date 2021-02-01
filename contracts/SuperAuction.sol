@@ -19,10 +19,12 @@ import {
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/math/SignedSafeMath.sol";
 import "@superfluid-finance/ethereum-contracts/contracts/utils/Int96SafeMath.sol";
 
-contract SuperAuction is Ownable, SuperAppBase {
+
+contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
 
     using Int96SafeMath for int96;
     using SafeMath for uint256;
@@ -42,7 +44,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     uint256 public immutable streamTime;
     address public winner;
     int96 public winnerFlowRate;
-    int96 public _step;
+    int96 public step;
 
     bool public isFinish;
     mapping(address => Bidder) public bidders;
@@ -56,24 +58,29 @@ contract SuperAuction is Ownable, SuperAppBase {
         IConstantFlowAgreementV1 cfa,
         ISuperToken superToken,
         uint256 winnerTime,
-        int96 step
+        int96 stepBid
     ) {
         require(address(host) != address(0), "Auction: host is empty");
         require(address(cfa) != address(0), "Auction: cfa is empty");
         require(address(superToken) != address(0), "Auction: superToken is empty");
         require(winnerTime > 0, "Auction: Provide a winner stream time");
+        require(stepBid > 0 && stepBid <=100, "Auction: Step value wrong" );
 
         _host = host;
         _cfa = cfa;
         _superToken = superToken;
         streamTime = winnerTime;
-        _step = step; //percentage
+        step = stepBid; //percentage
 
         uint256 configWord =
             SuperAppDefinitions.APP_LEVEL_FINAL |
             SuperAppDefinitions.BEFORE_AGREEMENT_CREATED_NOOP;
 
         _host.registerApp(configWord);
+    }
+
+    function onERC721Received(address, address, uint256, bytes memory) public override returns (bytes4) {
+        return this.onERC721Received.selector;
     }
 
     function finishAuction() public {
@@ -106,7 +113,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     {
         require(
             (flowRate.mul(100, "Int96SafeMath: multiplication error")) >=
-            (winnerFlowRate.mul(100 + _step, "Int96SafeMath: multiplication error")),
+            (winnerFlowRate.mul(100 + step, "Int96SafeMath: multiplication error")),
             "Auction: FlowRate is not enough"
         );
         require(bidders[account].cumulativeTimer == 0, "Auction: Sorry no rejoins");
@@ -181,7 +188,7 @@ contract SuperAuction is Ownable, SuperAppBase {
             (, int96 flowRate) = _getFlowInfo(account);
                     require(
                         (flowRate.mul(100, "Int96SafeMath: multiplication error"))
-                        >= (winnerFlowRate.mul(100+_step,
+                        >= (winnerFlowRate.mul(100+step,
                         "Int96SafeMath: multiplication error")
                         ), "Auction: FlowRate is not enough"
                     );
@@ -277,7 +284,7 @@ contract SuperAuction is Ownable, SuperAppBase {
     }
 
     function stopAuction() external onlyOwner isRunning {
-        if(winner == address(0) && !isFinish) {
+        if(winner == address(0)) {
             isFinish = true;
         }
     }
