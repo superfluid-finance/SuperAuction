@@ -16,8 +16,8 @@ contract("SuperAuction", accounts => {
     if (err) throw err;
   };
 
-  accounts = accounts.slice(0, 7);
-  const [admin, bob, carol, dan, alice, karl, anna] = accounts;
+  accounts = accounts.slice(0,10);
+  const [admin, bob, carol, dan, alice, karl, anna, ben, john, dude] = accounts;
   const userNames = {};
   userNames[admin] = "Admin";
   userNames[bob] = "Bob";
@@ -25,7 +25,11 @@ contract("SuperAuction", accounts => {
   userNames[dan] = "Dan";
   userNames[alice] = "Alice";
   userNames[karl] = "Karl";
-  userNames[anna] = "Anna"
+  userNames[anna] = "Anna";
+  userNames[ben] = "Ben";
+  userNames[john] = "John";
+  userNames[dude] = "Dude";
+
 
   let sf;
   let dai;
@@ -191,6 +195,7 @@ contract("SuperAuction", accounts => {
       web3Provider,
       tokens: ["fDAI"]
     });
+
     await sf.initialize();
     daix = sf.tokens.fDAIx;
     if (!dai) {
@@ -268,6 +273,73 @@ contract("SuperAuction", accounts => {
       );
     }
   }
+
+  it("Case #0 - Check deployment", async() => {
+
+    await expectRevert(SuperAuction.new(
+      ZERO_ADDRESS,
+      //sf.host.address,
+      sf.agreements.cfa.address,
+      daix.address,
+      "0x00F96712cd4995bCd8647dd9Baa995286e4d5c99", //Fake
+      99, //Fake
+      86400,
+      10
+    ), "Auction: host is empty");
+
+    await expectRevert(SuperAuction.new(
+      sf.host.address,
+      ZERO_ADDRESS,
+      //sf.agreements.cfa.address,
+      daix.address,
+      "0x00F96712cd4995bCd8647dd9Baa995286e4d5c99", //Fake
+      99, //Fake
+      86400,
+      10
+    ), "Auction: cfa is empty");
+
+    await expectRevert(SuperAuction.new(
+      sf.host.address,
+      sf.agreements.cfa.address,
+      ZERO_ADDRESS,
+      //daix.address,
+      "0x00F96712cd4995bCd8647dd9Baa995286e4d5c99", //Fake
+      99, //Fake
+      86400,
+      10
+    ), "Auction: superToken is empty");
+
+    await expectRevert(SuperAuction.new(
+      sf.host.address,
+      sf.agreements.cfa.address,
+      daix.address,
+      ZERO_ADDRESS,
+      99, //Fake
+      86400,
+      10
+    ), "Auction: NFT is empty");
+
+    await expectRevert(SuperAuction.new(
+      sf.host.address,
+      sf.agreements.cfa.address,
+      daix.address,
+      "0x00F96712cd4995bCd8647dd9Baa995286e4d5c99", //Fake
+      99, //Fake
+      0,
+      10
+    ), "Auction: Provide a winner stream time");
+
+    await expectRevert(SuperAuction.new(
+      sf.host.address,
+      sf.agreements.cfa.address,
+      daix.address,
+      "0x00F96712cd4995bCd8647dd9Baa995286e4d5c99", //Fake
+      99, //Fake
+      86400,
+      101
+    ), "Auction: Step value wrong");
+
+  });
 
   it("Case #1 - Bob joins new SuperAuction", async () => {
     const bobFlowInfo = await joinAuction(bob, "10000000");
@@ -468,7 +540,6 @@ contract("SuperAuction", accounts => {
     assert.equal(await app.winner(), carol, "Carol is not the winner");
   });
 
-  //Check winner update self balance, check if winner stops being winner
   it("Case #5 - Players should maintain correct information", async () => {
     const bob1Flow = toBN(10000000);
     const bob2Flow = toBN(15000000);
@@ -494,11 +565,9 @@ contract("SuperAuction", accounts => {
 
     console.log(bobQuery3.lastSettleAmount.toString());
     console.log(bobQuery3.cumulativeTimer.toString());
-
-
   });
 
-  it("Case # - Winner ends the auction", async () => {
+  it("Case #6 - Winner ends the auction", async () => {
     await joinAuction(bob, "10000000");
     await joinAuction(carol, "1100000001");
     await joinAuction(dan, "5100000000");
@@ -511,7 +580,50 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it("Case # - Should finish the auction explicity", async () => {
+  it("Case #7 - admin finish a auction without winner (stopAuction())", async () => {
+    assert.isFalse(await app.isFinish.call());
+    await app.stopAuction();
+    assert.isTrue(await app.isFinish.call())
+  });
+
+  it("Case #8 - admin finish a auction with winner on time)", async () => {
+    await joinAuction(bob, "10000");
+    assert.isFalse(await app.isFinish.call());
+    await app.stopAuction();
+    assert.isFalse(await app.isFinish.call())
+  });
+
+  it("Case #8 - finish a auction without winner (finishAuction)", async () => {
+    assert.isFalse(await app.isFinish.call());
+    await app.finishAuction();
+    assert.isFalse(await app.isFinish.call())
+  });
+
+  it("Case #9 - Should avoid rejoins", async () => {
+    await joinAuction(ben, "10000000");
+    await dropAuction(ben);
+    expectRevert(joinAuction(ben, "50000000"), "Auction: Sorry no rejoins");
+  });
+
+  it("Case #10 - Should avoid late updates", async () => {
+    await joinAuction(john, "10000000");
+    await timeTravelOnce(3600 * 25);
+    await app.finishAuction();
+    await expectRevert(updateAuction(john, "51100000001"), "Auction: Not running")
+  });
+
+  it("Case #11 - Late to party", async () => {
+    await joinAuction(bob, "10000000");
+    await joinAuction(carol, "1100000001");
+    await joinAuction(dan, "5100000000");
+    await joinAuction(alice, "15150000000");
+    await timeTravelOnce(3600 * 25);
+    await app.finishAuction();
+    expectRevert(joinAuction(karl, "995100000000"), "Auction: Not running");
+  });
+
+
+  it("Case #12 - Should finish the auction explicity", async () => {
     await joinAuction(bob, "10000000");
     await joinAuction(carol, "1100000001");
     await joinAuction(dan, "5100000000");
@@ -524,7 +636,7 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it("Case # - Should finish the auction by update", async () => {
+  it("Case #13 - Should finish the auction by update", async () => {
     await joinAuction(bob, "10000000");
     await joinAuction(carol, "1100000001");
     await joinAuction(dan, "5100000000");
@@ -536,7 +648,17 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it("Case # - Winner pays winner bid", async () => {
+  it("Case #14 - Should finish the auction by admin call", async () => {
+    await joinAuction(bob, "10000000");
+    await dropAuction(bob);
+    assert.isFalse(await app.isFinish(), "Auction should be running");
+    await web3tx(app.stopAuction, "Admin stopping the auction")(
+      { from: admin }
+    );
+    assert.isTrue(await app.isFinish(), "Auction should be stopped");
+  });
+
+  it("Case #15 - Winner pays winner bid", async () => {
     const initialAuctionBalance = await daix.balanceOf(app.address);
     const annaTokens1 = await daix.balanceOf(anna);
     await joinAuction(anna, toBN("100000"));
@@ -553,11 +675,54 @@ contract("SuperAuction", accounts => {
     );
     const adminTokens2 = await daix.balanceOf(admin);
     const howMuchOwnerReceives = adminTokens2.sub(adminTokens1);
-    assert.equal(howMuchAlicePay.toString(),howMuchOwnerReceives.toString(), "Owner did get the full amount send by alice" );
+    assert.equal(howMuchAlicePay.toString(),howMuchOwnerReceives.toString(), "Owner didnt get the full amount send by alice" );
     await web3tx(app.withdraw, `Admin getting auction tokens again`)(
       { from: admin }
     );
     const adminTokens3 = await daix.balanceOf(admin);
     assert.equal(adminTokens3.toString(), adminTokens1.add(howMuchOwnerReceives).toString(), "Admin is collecting more money after the withdraw");
+  });
+
+  it("Case #16 - Non Winner can withdraw the correct token amount", async () => {
+    const annaTokens1 = await daix.balanceOf(anna);
+    const benTokens1 = await daix.balanceOf(ben);
+    await joinAuction(anna, "10000000");
+    await joinAuction(ben, "1100000001");
+    await joinAuction(dude, "15100000000");
+    await timeTravelOnce(3600 * 25);
+    await app.finishAuction();
+    await dropAuction(anna);
+    await dropAuction(ben);
+    await dropAuction(dude);
+    const annaTokens2 = await daix.balanceOf(anna);
+    const benTokens2 = await daix.balanceOf(ben);
+    assert.equal(annaTokens1.toString(), annaTokens2.toString(), "Anna should have the same tokens");
+    assert.equal(benTokens1.toString(), benTokens2.toString(), "Ben should have the same tokens");
+  });
+
+  it("Case #17 - Call withdraw with auction is finish", async () => {
+    await joinAuction(bob, "10000000");
+    assert.isFalse(await app.isFinish(), "Auction should be running");
+    await expectRevert(app.withdraw(), "Auction: Still running");
+    await dropAuction(bob);
+  });
+
+  it("Case #17 - Should revert when Previous account is wrong", async() => {
+    const annaTokens1 = await daix.balanceOf(anna);
+    const benTokens1 = await daix.balanceOf(ben);
+    const johnTokens1 = await daix.balanceOf(john);
+    await joinAuction(anna, "10000000");
+    await joinAuction(ben, "1100000001");
+    await joinAuction(john, "5100000000");
+    await joinAuction(dude, "15100000000");
+    await timeTravelOnce(3600);
+    let userData = await web3.eth.abi.encodeParameters(["address"], [anna]);
+    await expectRevert(sf.cfa.updateFlow({
+      superToken: daix.address,
+      sender: john,
+      receiver: app.address,
+      flowRate: "18100000000",
+      userData: userData
+    }), "Auction: Previous Bidder is wrong");
   });
 });

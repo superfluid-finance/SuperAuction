@@ -20,12 +20,12 @@ import {
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+/*import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";*/
 import "@openzeppelin/contracts/math/SignedSafeMath.sol";
 import "@superfluid-finance/ethereum-contracts/contracts/utils/Int96SafeMath.sol";
 
 
-contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
+contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
 
     using Int96SafeMath for int96;
     using SafeMath for uint256;
@@ -86,9 +86,11 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         _host.registerApp(configWord);
     }
 
+    /*
     function onERC721Received(address, address, uint256, bytes memory) public override returns (bytes4) {
         return this.onERC721Received.selector;
     }
+    */
 
     function finishAuction() public {
         if(winner != address(0)) {
@@ -186,32 +188,32 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         bytes memory ctx
     )
     internal
+    isRunning
     returns(bytes memory newCtx)
     {
-        if(!isFinish) {
-            (, int96 flowRate) = _getFlowInfo(account);
-                    require(
-                        (flowRate.mul(100, "Int96SafeMath: multiplication error"))
-                        >= (winnerFlowRate.mul(step,"Int96SafeMath: multiplication error")
-                        ), "Auction: FlowRate is not enough"
-                    );
+        newCtx = ctx;
+        (, int96 flowRate) = _getFlowInfo(account);
+        require(
+            (flowRate.mul(100, "Int96SafeMath: multiplication error"))
+            >= (winnerFlowRate.mul(step,"Int96SafeMath: multiplication error")
+            ), "Auction: FlowRate is not enough"
+        );
 
-                    newCtx = ctx;
-                    address oldWinner = winner;
+        newCtx = ctx;
+        address oldWinner = winner;
 
-                    if(account != winner) {
-                        address previousAccount = abi.decode(_host.decodeCtx(ctx).userData, (address));
-                        require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
-                        bidders[previousAccount].nextAccount = bidders[account].nextAccount;
-                        (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner);
-                        newCtx = _endStream(address(this), account, newCtx);
-                        newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
-                        bidders[account].nextAccount = oldWinner;
-                        winner = account;
-                    }
-                    _settleAccount(oldWinner, oldTimestamp, oldFlowRate);
-                    winnerFlowRate = flowRate;
+        if(account != winner) {
+            address previousAccount = abi.decode(_host.decodeCtx(ctx).userData, (address));
+            require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
+            bidders[previousAccount].nextAccount = bidders[account].nextAccount;
+            (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner);
+            newCtx = _endStream(address(this), account, newCtx);
+            newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
+            bidders[account].nextAccount = oldWinner;
+            winner = account;
         }
+        _settleAccount(oldWinner, oldTimestamp, oldFlowRate);
+        winnerFlowRate = flowRate;
         finishAuction();
     }
 
@@ -265,7 +267,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
      * GateKeeper Functions
      *************************************************************************/
 
-    function _withdrawNonWinnerPlayer(address account) internal isStopped {
+    function _withdrawNonWinnerPlayer(address account) internal {
         uint256 settleBalance = bidders[account].lastSettleAmount;
         bidders[msg.sender].lastSettleAmount = 0;
         if(_superToken.balanceOf(address(this)) >= settleBalance) {
@@ -273,7 +275,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         }
     }
 
-    function _withdrawWinner(address account) internal isStopped {
+    function _withdrawWinner(address account) internal {
         //Transfer NFT Token
         //if(nftContract.ownerOf(tokenId) == address(this)) {
             //nftContract.safeTransferFrom(address(this), account, tokenId);
@@ -281,7 +283,8 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         //}
     }
 
-    function withdraw() external onlyOwner isStopped {
+    function withdraw() external onlyOwner {
+        require(isFinish, "Auction: Still running");
         (uint256 timestamp, int96 flowRate) = _getFlowInfo(winner);
         uint256 lastSettleAmount = bidders[winner].lastSettleAmount;
         delete bidders[winner].lastSettleAmount;
@@ -313,59 +316,20 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         );
     }
 
-    function _updateStream(
-        address account,
-        int96 flowRate,
-        bytes memory ctx
-    )
-    internal
-    returns(bytes memory newCtx)
-    {
+    function _endStream(address sender, address receiver, bytes memory ctx) internal returns(bytes memory newCtx) {
+        newCtx = ctx;
         (newCtx, ) = _host.callAgreementWithContext(
             _cfa,
             abi.encodeWithSelector(
-                _cfa.updateFlow.selector,
+                _cfa.deleteFlow.selector,
                 _superToken,
-                address(this),
-                account,
-                flowRate,
+                sender,
+                receiver,
                 new bytes(0)
             ),
             "0x",
             ctx
         );
-    }
-
-    function _endStream(address sender, address receiver, bytes memory ctx) internal returns(bytes memory newCtx) {
-        newCtx = ctx;
-        (, int96 flowRate , ,) = _cfa.getFlow(_superToken, sender, receiver);
-        if(ctx.length > 0 && flowRate > 0) {
-            (newCtx, ) = _host.callAgreementWithContext(
-                _cfa,
-                abi.encodeWithSelector(
-                    _cfa.deleteFlow.selector,
-                    _superToken,
-                    sender,
-                    receiver,
-                    new bytes(0)
-                ),
-                "0x",
-                ctx
-            );
-        } else if(flowRate > 0) {
-            _host.callAgreement(
-                _cfa,
-                abi.encodeWithSelector(
-                    _cfa.deleteFlow.selector,
-                    _superToken,
-                    sender,
-                    receiver,
-                    new bytes(0)
-                ),
-                "0x"
-            );
-
-        }
     }
 
     /**************************************************************************
@@ -460,12 +424,12 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
     override
     onlyHost
     returns (bytes memory newCtx) {
+        newCtx = ctx;
         if(_isSameToken(superToken) && _isCFAv1(agreementClass)) {
             address account = _host.decodeCtx(ctx).msgSender;
             (uint256 timestamp, int96 flowRate) = abi.decode(cbdata, (uint256, int96));
-            return _dropPlayer(account, timestamp, flowRate, ctx);
+            newCtx = _dropPlayer(account, timestamp, flowRate, ctx);
         }
-        return ctx;
     }
 
     function _isSameToken(ISuperToken superToken) private view returns (bool) {
@@ -480,11 +444,6 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
     /*Modifier*/
     modifier isRunning() {
         require(!isFinish, "Auction: Not running");
-        _;
-    }
-
-    modifier isStopped() {
-        require(isFinish, "Auction: Still running");
         _;
     }
 
