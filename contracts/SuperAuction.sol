@@ -92,6 +92,9 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
     }
     */
 
+    /**
+     * @dev Set Auction to finish state. Has to exist one winner
+     */
     function finishAuction() public {
         if(winner != address(0)) {
             (uint256 timestamp, ) = _getFlowInfo(winner);
@@ -99,18 +102,31 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
         }
     }
 
+    /**
+     * @dev Set Auction to finish state. Check winner time of flow to close auction
+     */
     function _endAuction(uint256 timestamp) internal {
         if(!isFinish) {
-            if(bidders[winner].cumulativeTimer.add(block.timestamp.sub(timestamp)) >= streamTime) {
+            if(bidders[winner].cumulativeTimer.add(
+                block.timestamp.sub(timestamp)
+                ) >= streamTime) {
                 isFinish = true;
                 emit AuctionClosed();
-           }
+            }
         }
     }
 
     /**************************************************************************
      * CFA Reative Functions
      *************************************************************************/
+
+     /**
+     * @dev Add new player to Auction.
+     * @param account Address joining the auction.
+     * @param flowRate Flow rate in amount per second for this flow.
+     * @param ctx Context from Superfluid callback.
+     * @return newCtx NewCtx to Superfluid callback caller.
+     */
     function _newPlayer(
         address account,
         int96 flowRate,
@@ -137,50 +153,14 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
         emit NewWinner(winner, flowRate);
     }
 
-    //TODO: refactor
-    function _dropPlayer(address account, uint256 oldTimestamp, int96 oldFlowRate, bytes memory ctx) internal returns(bytes memory newCtx) {
-        newCtx = ctx;
-        _endAuction(oldTimestamp);
-        if(!isFinish) {
-            if(account == winner) {
-                _settleAccount(account, oldTimestamp, oldFlowRate);
-                if(bidders[winner].nextAccount != address(0)) {
-                    address next = bidders[winner].nextAccount;
-                    delete bidders[winner].nextAccount;
-                    int96 flowRate;
-                    while(next != address(0)) {
-                        (, flowRate) = _getFlowInfo(next);
-                        if(flowRate > 0) {
-                            winnerFlowRate = flowRate;
-                            winner = next;
-                            emit NewWinner(winner, flowRate);
-                            return _endStream(address(this), next, ctx);
-                        }
-                        //iterate
-                        next = bidders[next].nextAccount;
-                    }
-                }
-                //there is no winner in queue
-                delete winner;
-                delete winnerFlowRate;
-            } else {
-                newCtx = _endStream(address(this), account, ctx);
-                //Maybe delete their time.
-            }
-            emit DropPlayer(account);
-        } else {
-            if(account != winner) {
-                newCtx = _endStream(address(this), account, ctx);
-                _withdrawNonWinnerPlayer(account);
-            } else {
-                _settleAccount(account, oldTimestamp, oldFlowRate);
-                _withdrawWinner(account);
-                delete winnerFlowRate;
-            }
-        }
-    }
-
-    //Update Flow - Review
+    /**
+     * @dev Update player flowRate. Each call will try to close the auction.
+     * @param account Address to update.
+     * @param oldFlowRate Flow rate before the update.
+     * @param oldTimestamp Timestamp before the update.
+     * @param ctx Context from Superfluid callback.
+     * @return newCtx NewCtx to Superfluid callback caller.
+     */
     function _updatePlayer(
         address account,
         int96 oldFlowRate,
@@ -207,7 +187,7 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
             require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
             bidders[previousAccount].nextAccount = bidders[account].nextAccount;
             (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner);
-            newCtx = _endStream(address(this), account, newCtx);
+            newCtx = _endStream(account, newCtx);
             newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
             bidders[account].nextAccount = oldWinner;
             winner = account;
@@ -217,6 +197,68 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
         finishAuction();
     }
 
+    /**
+     * @dev Drop player from auction. Each call will try to close the auction.
+     * @param account Address to drop.
+     * @param oldFlowRate Flow rate before the drop.
+     * @param oldTimestamp Timestamp before the drop.
+     * @param ctx Context from Superfluid callback.
+     * @return newCtx NewCtx to Superfluid callback caller.
+     */
+    function _dropPlayer(
+        address account,
+        uint256 oldTimestamp,
+        int96 oldFlowRate,
+        bytes memory ctx
+    )
+    internal
+    returns(bytes memory newCtx)
+    {
+        newCtx = ctx;
+        _endAuction(oldTimestamp);
+        if(!isFinish) {
+            if(account == winner) {
+                _settleAccount(account, oldTimestamp, oldFlowRate);
+                if(bidders[winner].nextAccount != address(0)) {
+                    address next = bidders[winner].nextAccount;
+                    delete bidders[winner].nextAccount;
+                    int96 flowRate;
+                    while(next != address(0)) {
+                        (, flowRate) = _getFlowInfo(next);
+                        if(flowRate > 0) {
+                            winnerFlowRate = flowRate;
+                            winner = next;
+                            emit NewWinner(winner, flowRate);
+                            return _endStream(next, ctx);
+                        }
+                        next = bidders[next].nextAccount;
+                    }
+                }
+                //Note: There is no winner in list.
+                delete winner;
+                delete winnerFlowRate;
+            } else {
+                newCtx = _endStream(account, ctx);
+            }
+            emit DropPlayer(account);
+        } else {
+            if(account != winner) {
+                newCtx = _endStream(account, ctx);
+                _withdrawNonWinnerPlayer(account);
+            } else {
+                _settleAccount(account, oldTimestamp, oldFlowRate);
+                _withdrawWinner(account);
+                delete winnerFlowRate;
+            }
+        }
+    }
+
+    /**
+     * @dev Get the Flow Rate the player is sending to auction contract.
+     * @param sender Address to query.
+     * @return timestamp of the stream.
+     * @return flowRate of the stream.
+     */
     function _getFlowInfo(
         address sender
     )
@@ -227,6 +269,15 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
         (timestamp, flowRate , ,) = _cfa.getFlow(_superToken, sender, address(this));
     }
 
+    /**
+     * @dev Get the Settlement information for player.
+     * @dev If no FlowRate and Timestamp query it using _getFlowInfo().
+     * @param account Address to drop.
+     * @param oldFlowRate Flow rate before the action.
+     * @param oldTimestamp Timestamp before the action.
+     * @return settleBalance of the player.
+     * @return cumulativeTimer of the player.
+     */
     function getSettleInfo(
         address account,
         uint256 oldTimestamp,
@@ -249,6 +300,12 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
         }
     }
 
+    /**
+     * @dev Change player information based on parameters.
+     * @param account Address to drop.
+     * @param cbTimestamp Flow rate before the action.
+     * @param cbFlowRate Timestamp before the action.
+     */
     function _settleAccount(
         address account,
         uint256 cbTimestamp,
@@ -261,12 +318,10 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
           bidders[account].lastSettleAmount = bidders[account].lastSettleAmount.add(settleBalance);
     }
 
-
-
-    /**************************************************************************
-     * GateKeeper Functions
-     *************************************************************************/
-
+    /**
+     * @dev Non winners players collect the settlement tokens balance in the end.
+     * @param account Address to send SuperTokens.
+     */
     function _withdrawNonWinnerPlayer(address account) internal {
         uint256 settleBalance = bidders[account].lastSettleAmount;
         bidders[msg.sender].lastSettleAmount = 0;
@@ -275,6 +330,10 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
         }
     }
 
+    /**
+     * @dev Winner collects the NFT tokens from auction.
+     * @param account Address to send NFT.
+     */
     function _withdrawWinner(address account) internal {
         //Transfer NFT Token
         //if(nftContract.ownerOf(tokenId) == address(this)) {
@@ -283,15 +342,22 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
         //}
     }
 
+    /**
+     * @dev Owner collects winners bid payment.
+     */
     function withdraw() external onlyOwner {
         require(isFinish, "Auction: Still running");
         (uint256 timestamp, int96 flowRate) = _getFlowInfo(winner);
         uint256 lastSettleAmount = bidders[winner].lastSettleAmount;
         delete bidders[winner].lastSettleAmount;
-        uint256 balance = lastSettleAmount.add(uint256((int256(block.timestamp).sub(int256(timestamp))).mul(flowRate)));
+        uint256 balance = lastSettleAmount.add(
+            uint256((int256(block.timestamp).sub(int256(timestamp))
+            ).mul(flowRate)));
         assert(_superToken.transferFrom(address(this), owner(), balance));
     }
-
+    /**
+     * @dev Owner can stop the auction if there is no winner.
+     */
     function stopAuction() external onlyOwner isRunning {
         if(winner == address(0)) {
             isFinish = true;
@@ -301,7 +367,22 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
     /**************************************************************************
      * Constant Flow Agreements Functions
      *************************************************************************/
-    function _startStream(address account, int96 flowRate, bytes memory ctx) internal returns(bytes memory newCtx) {
+
+    /**
+     * @dev Helper function to start a stream from auction to user.
+     * @param account Address to drop.
+     * @param flowRate Flow rate to send.
+     * @param ctx Context from Superfluid callback.
+     * @return newCtx NewCtx to Superfluid callback caller.
+     */
+    function _startStream(
+        address account,
+        int96 flowRate,
+        bytes memory ctx
+    )
+    internal
+    returns(bytes memory newCtx)
+    {
         (newCtx, ) = _host.callAgreementWithContext(
             _cfa,
             abi.encodeWithSelector(
@@ -316,14 +397,26 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
         );
     }
 
-    function _endStream(address sender, address receiver, bytes memory ctx) internal returns(bytes memory newCtx) {
+    /**
+     * @dev Helper function to stop a stream from auction to user.
+     * @param receiver Address to stop sending the stream.
+     * @param ctx Context from Superfluid callback.
+     * @return newCtx NewCtx to Superfluid callback caller.
+     */
+    function _endStream(
+        address receiver,
+        bytes memory ctx
+    )
+    internal
+    returns(bytes memory newCtx)
+    {
         newCtx = ctx;
         (newCtx, ) = _host.callAgreementWithContext(
             _cfa,
             abi.encodeWithSelector(
                 _cfa.deleteFlow.selector,
                 _superToken,
-                sender,
+                address(this),
                 receiver,
                 new bytes(0)
             ),
@@ -334,6 +427,7 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
 
     /**************************************************************************
      * SuperApp callbacks
+     * https://github.com/superfluid-finance/protocol-monorepo/tree/master/packages/ethereum-contracts
      *************************************************************************/
 
     function afterAgreementCreated(
