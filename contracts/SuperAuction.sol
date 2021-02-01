@@ -172,7 +172,6 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
             } else {
                 _settleAccount(account, oldTimestamp, oldFlowRate);
                 _withdrawWinner(account);
-                delete winner;
                 delete winnerFlowRate;
             }
         }
@@ -265,8 +264,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
      * GateKeeper Functions
      *************************************************************************/
 
-    function _withdrawNonWinnerPlayer(address account) internal {
-        require(isFinish, "Auction: Still running");
+    function _withdrawNonWinnerPlayer(address account) internal isStopped {
         uint256 settleBalance = bidders[account].lastSettleAmount;
         bidders[msg.sender].lastSettleAmount = 0;
         if(_superToken.balanceOf(address(this)) >= settleBalance) {
@@ -274,13 +272,11 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         }
     }
 
-    function _withdrawWinner(address account) internal {
-        require(isFinish, "Auction: Still running");
+    function _withdrawWinner(address account) internal isStopped {
         //Transfer NFT Token
     }
 
-    function withdraw() external onlyOwner {
-        require(isFinish, "Auction: Still running");
+    function withdraw() external onlyOwner isStopped {
         (uint256 timestamp, int96 flowRate) = _getFlowInfo(winner);
         uint256 lastSettleAmount = bidders[winner].lastSettleAmount;
         uint256 balance = lastSettleAmount.add(uint256((int256(block.timestamp).sub(int256(timestamp))).mul(flowRate)));
@@ -480,6 +476,12 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         require(!isFinish, "Auction: Not running");
         _;
     }
+
+    modifier isStopped() {
+        require(isFinish, "Auction: Still running");
+        _;
+    }
+
     modifier onlyHost() {
         require(msg.sender == address(_host), "Auction: support only one host");
         _;
