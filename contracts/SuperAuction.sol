@@ -187,7 +187,6 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
     internal
     returns(bytes memory newCtx)
     {
-        finishAuction();
         if(!isFinish) {
             (, int96 flowRate) = _getFlowInfo(account);
                     require(
@@ -212,6 +211,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
                     _settleAccount(oldWinner, oldTimestamp, oldFlowRate);
                     winnerFlowRate = flowRate;
         }
+        finishAuction();
     }
 
     function _getFlowInfo(
@@ -279,6 +279,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
     function withdraw() external onlyOwner isStopped {
         (uint256 timestamp, int96 flowRate) = _getFlowInfo(winner);
         uint256 lastSettleAmount = bidders[winner].lastSettleAmount;
+        delete bidders[winner].lastSettleAmount;
         uint256 balance = lastSettleAmount.add(uint256((int256(block.timestamp).sub(int256(timestamp))).mul(flowRate)));
         assert(_superToken.transferFrom(address(this), owner(), balance));
     }

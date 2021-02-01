@@ -517,7 +517,18 @@ contract("SuperAuction", accounts => {
     );
   });
 
-  it.only("Case # - Winner pays winner bid", async () => {
+  it("Case # - Should finish the auction by update", async () => {
+    await joinAuction(bob, "10000000");
+    await joinAuction(carol, "1100000001");
+    await joinAuction(dan, "5100000000");
+    await joinAuction(alice, "15150000000");
+    await timeTravelOnce(3600 * 25);
+    await updateAuction(alice, "115150000000");
+    assert.ok(
+      await app.isFinish.call(),
+      "Auction should finish after correct request"
+    );
+  });
     const aliceFlow = toBN("10000000");
     const aliceTokens1 = await daix.balanceOf(alice);
     console.log(aliceTokens1.toString());
