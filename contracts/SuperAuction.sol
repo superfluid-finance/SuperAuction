@@ -50,7 +50,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
     bool public isFinish;
     mapping(address => Bidder) public bidders;
     IERC721 public nftContract;
-
+    uint256 public tokenId;
     ISuperfluid private _host;
     IConstantFlowAgreementV1 public _cfa;
     ISuperToken public _superToken;
@@ -60,6 +60,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         IConstantFlowAgreementV1 cfa,
         ISuperToken superToken,
         IERC721 nft,
+        uint256 _tokenId,
         uint256 winnerTime,
         int96 stepBid
     ) {
@@ -73,6 +74,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         _host = host;
         _cfa = cfa;
         nftContract = nft;
+        tokenId = _tokenId;
         _superToken = superToken;
         streamTime = winnerTime;
         step = stepBid + 100;
@@ -123,7 +125,6 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         );
         require(bidders[account].cumulativeTimer == 0, "Auction: Sorry no rejoins");
         newCtx = ctx;
-        //bidders[account].cumulativeTimer = 1;
         bidders[account].nextAccount = winner;
         if(winner != address(0)) {
             _settleAccount(winner, 0, 0);
@@ -131,7 +132,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         }
         winner = account;
         winnerFlowRate = flowRate;
-        //emit event
+        emit NewWinner(winner, flowRate);
     }
 
     //TODO: refactor
@@ -141,7 +142,6 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
         if(!isFinish) {
             if(account == winner) {
                 _settleAccount(account, oldTimestamp, oldFlowRate);
-                //Only one bidder and is dropping
                 if(bidders[winner].nextAccount != address(0)) {
                     address next = bidders[winner].nextAccount;
                     delete bidders[winner].nextAccount;
@@ -165,6 +165,7 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
                 newCtx = _endStream(address(this), account, ctx);
                 //Maybe delete their time.
             }
+            emit DropPlayer(account);
         } else {
             if(account != winner) {
                 newCtx = _endStream(address(this), account, ctx);
@@ -274,6 +275,10 @@ contract SuperAuction is Ownable, SuperAppBase, IERC721Receiver {
 
     function _withdrawWinner(address account) internal isStopped {
         //Transfer NFT Token
+        //if(nftContract.ownerOf(tokenId) == address(this)) {
+            //nftContract.safeTransferFrom(address(this), account, tokenId);
+        //   emit TransferNFT(account, tokenId);
+        //}
     }
 
     function withdraw() external onlyOwner isStopped {
