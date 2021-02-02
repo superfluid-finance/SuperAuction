@@ -8,22 +8,23 @@
   },
   "scripts": {
     "dev": "nodemon -e sol,js -i build -x 'npm test 2>&1'",
-    "build": "run build:*",
-    "build:contracts": "rm -f build/contracts/*;truffle compile",
-    "test": "run test:*",
-    "test-coverage": "npm build && truffle run coverage --file test/contracts.test.js"
+    "build": "truffle compile --all",
+    "test": "truffle test",
+    "test-coverage": "truffle compile --all && truffle run coverage"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@openzeppelin/contracts": "3.3.0",
     "@superfluid-finance/ethereum-contracts": "^0.2.3",
-    "@superfluid-finance/js-sdk": "^0.2.2"
+    "@superfluid-finance/js-sdk": "^0.2.2",
+    "@truffle/contract": "4.3.4"
   },
   "devDependencies": {
     "@decentral.ee/web3-helpers": "^0.3.5",
     "@openzeppelin/test-helpers": "^0.5.10",
     "ganache-time-traveler": "^1.0.15",
-    "solidity-coverage": "^0.7.14"
+    "solidity-coverage": "^0.7.14",
+    "truffle": "5.1.49"
   }
 }
