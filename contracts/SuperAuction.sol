@@ -17,6 +17,10 @@ import {
     SuperAppBase
 } from "@superfluid-finance/ethereum-contracts/contracts/apps/SuperAppBase.sol";
 
+import {
+    ISuperAuction
+} from "./interfaces/ISuperAuction.sol";
+
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -25,16 +29,11 @@ import "@openzeppelin/contracts/math/SignedSafeMath.sol";
 import "@superfluid-finance/ethereum-contracts/contracts/utils/Int96SafeMath.sol";
 
 
-contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
+contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receiver */ {
 
     using Int96SafeMath for int96;
     using SafeMath for uint256;
     using SignedSafeMath for int256;
-
-    event NewWinner(address indexed account, int96 flowRate);
-    event DropPlayer(address indexed account);
-    event TransferNFT(address indexed to, uint256 indexed tokenId);
-    event AuctionClosed();
 
     struct Bidder {
         uint256 cumulativeTimer;
@@ -42,18 +41,18 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
         address nextAccount;
     }
 
-    uint256 public immutable streamTime;
-    address public winner;
-    int96 public winnerFlowRate;
+    uint256 public override immutable streamTime;
+    address public override winner;
+    int96 public override winnerFlowRate;
     int96 public step;
 
     bool public isFinish;
-    mapping(address => Bidder) public bidders;
+    mapping(address => Bidder) public override bidders;
     IERC721 public nftContract;
     uint256 public tokenId;
     ISuperfluid private _host;
-    IConstantFlowAgreementV1 public _cfa;
-    ISuperToken public _superToken;
+    IConstantFlowAgreementV1 public override _cfa;
+    ISuperToken public override _superToken;
 
     constructor(
         ISuperfluid host,

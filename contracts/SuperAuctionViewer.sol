@@ -23,6 +23,11 @@ contract SuperAuctionViewer {
     using SafeMath for uint256;
     using SignedSafeMath for int256;
 
+    event NewWinner(address indexed account, int96 flowRate);
+    event DropPlayer(address indexed account);
+    event TransferNFT(address indexed to, uint256 indexed tokenId);
+    event AuctionClosed();
+
     function getBiddersAddresses(
         address auctionAddress,
         uint256 listFrom,
