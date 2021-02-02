@@ -7,11 +7,10 @@
     "test": "test"
   },
   "scripts": {
-    "dev": "nodemon -e sol,js -i build -x 'npm test 2>&1'",
-    "build": "run build:*",
-    "build:contracts": "rm -f build/contracts/*;truffle compile",
-    "test": "run test:*",
-    "test-coverage": "npm build && truffle run coverage --file test/contracts.test.js"
+     "dev": "nodemon -e sol,js -i build -x 'npm test 2>&1'",
+    "build": "truffle compile --all",
+    "test": "truffle test",
+    "test-coverage": "truffle compile --all && truffle run coverage"
   },
   "author": "",
   "license": "ISC",
