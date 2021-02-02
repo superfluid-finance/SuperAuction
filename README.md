@@ -95,6 +95,7 @@ The user dropping will be blocked from rejoining the auction. The smart contract
 If the auction is finish, users can drop from the game to collect, in case of the winner NFT token, in case of non winners the settlement balance.
 
 The non winners can execute a specific function to get back the settlement balance, if they here drop before the auction ended.
+
 ---
 
 ## Others notes
