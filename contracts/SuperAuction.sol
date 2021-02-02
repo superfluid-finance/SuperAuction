@@ -431,8 +431,8 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
      *************************************************************************/
 
     function afterAgreementCreated(
-        ISuperToken /*superToken*/,
-        address /*agreementClass*/,
+        ISuperToken superToken,
+        address agreementClass,
         bytes32 /*agreementId*/,
         bytes calldata /*agreementData*/,
         bytes calldata /*cbdata*/,
@@ -441,6 +441,7 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
     external
     override
     onlyHost
+    onlyExpected(superToken, agreementClass)
     isRunning
     returns (bytes memory newCtx)
     {
@@ -469,8 +470,8 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
     }
 
     function afterAgreementUpdated(
-        ISuperToken /*superToken*/,
-        address /*agreementClass*/,
+        ISuperToken superToken,
+        address agreementClass,
         bytes32 /*agreementId*/,
         bytes calldata /*agreementData*/,
         bytes calldata cbdata,
@@ -479,6 +480,7 @@ contract SuperAuction is Ownable, SuperAppBase/*, IERC721Receiver */{
     external
     override
     onlyHost
+    onlyExpected(superToken, agreementClass)
     returns (bytes memory newCtx)
     {
         address account = _host.decodeCtx(ctx).msgSender;
