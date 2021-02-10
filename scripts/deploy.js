@@ -1,37 +1,27 @@
-const {
-    web3tx
-} = require("@decentral.ee/web3-helpers");
-const SuperfluidSDK = require("@superfluid-finance/ethereum-contracts");
-const Auction = artifacts.require("Auction");
+const SuperAuction = artifacts.require("SuperAuction");
 
 module.exports = async function (callback, argv) {
-    const errorHandler = err => { if (err) throw err; };
 
     try {
-        global.web3 = web3;
 
-        const version = process.env.RELEASE_VERSION || "test";
-        console.log("release version:", version);
+        //Goerli V1 info
+        const host = "0x22ff293e14F1EC3A09B137e9e06084AFd63adDF9";
+        const cfa = "0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8";
+        const fDAIx = "0xF2d68898557cCb2Cf4C10c3Ef2B034b2a69DAD00";
+        const NFT = "0x232412F72cB4e679Df8eDF7dbCA62A1d3854f61e";
 
-        this.framework = new SuperfluidSDK.Framework({
-            version: version,
-            web3Provider: web3,
-            tokens: "fDAI",
-            chainId: 5
-        });
-        await this.framework.initialize();
-
-        const app = await web3tx(SuperAuction.new, "Deploy SuperAuction")(
-            sf.host.address,
-            sf.agreements.cfa.address,
-            sf.tokens.fDAIx.address,
+        const app = await SuperAuction.new(
+            host,
+            cfa,
+            fDAIx,
+            NFT,
+            1,
             86400,
             10
           );
 
         console.log("App deployed at", app.address);
-        callback();
     } catch (err) {
-        callback(err);
+        console.log(err);
     }
 }

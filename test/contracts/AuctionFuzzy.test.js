@@ -10,7 +10,7 @@ const Viewer = artifacts.require("SuperAuctionViewer");
 const traveler = require("ganache-time-traveler");
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers").constants;
-const TEST_TRAVEL_TIME = 100; // 24 hours
+const TEST_TRAVEL_TIME = 100;
 
 contract("Auction Fuzzy", accounts => {
   const errorHandler = err => {
@@ -177,19 +177,21 @@ contract("Auction Fuzzy", accounts => {
 
   beforeEach(async function() {
     const web3Provider = web3.currentProvider;
+    process.env.RESET_SUPERFLUID_FRAMEWORK = true;
+    process.env.NEW_TEST_RESOLVER  = true;
 
-    await deployFramework(errorHandler, { from: admin });
+    await deployFramework(errorHandler, { web3: web3, from: admin });
     await deployTestToken(errorHandler, [":", "fDAI"], {
-      web3Provider,
+      web3: web3,
       from: admin
     });
     await deploySuperToken(errorHandler, [":", "fDAI"], {
-      web3Provider,
+      web3: web3,
       from: admin
     });
 
     sf = new SuperfluidSDK.Framework({
-      web3Provider,
+      web3: web3,
       tokens: ["fDAI"]
     });
     await sf.initialize();
@@ -423,6 +425,18 @@ contract("Auction Fuzzy", accounts => {
 
   describe("Fuzzy testing", async function() {
     it("Case #999 - Random testing", async () => {
+
+
+      app = await web3tx(SuperAuction.new, "Deploy SuperAuction")(
+        sf.host.address,
+        sf.agreements.cfa.address,
+        daix.address,
+        "0x00F96712cd4995bCd8647dd9Baa995286e4d5c99", //Fake
+        "1", //Fake
+        86400,
+        10
+      );
+
       initialGlobalTime = await (await web3.eth.getBlock("latest")).timestamp;
       const appInitialBalance = await daix.balanceOf(app.address);
       for (var i = 0; i < 25; i++) {

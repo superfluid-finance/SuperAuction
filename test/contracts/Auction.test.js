@@ -181,18 +181,17 @@ contract("SuperAuction", accounts => {
   }
 
   beforeEach(async function() {
-    const web3Provider = web3.currentProvider;
-    await deployFramework(errorHandler, { from: admin });
+    await deployFramework(errorHandler, { web3: web3, from: admin });
     await deployTestToken(errorHandler, [":", "fDAI"], {
-      web3Provider,
+      web3: web3,
       from: admin
     });
     await deploySuperToken(errorHandler, [":", "fDAI"], {
-      web3Provider,
+      web3: web3,
       from: admin
     });
     sf = new SuperfluidSDK.Framework({
-      web3Provider,
+      web3: web3,
       tokens: ["fDAI"]
     });
 
