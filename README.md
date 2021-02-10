@@ -112,13 +112,7 @@ npm install
 ```
 ### Run tests
 ```bash
-truffle test test/contracts/Auction.test.js
-```
-
-Run Fuzzy tests
-
-```bash
-truffle test test/contracts/AuctionFuzzy.test.js
+truffle test
 ```
 
 ### Run code Coverage 
