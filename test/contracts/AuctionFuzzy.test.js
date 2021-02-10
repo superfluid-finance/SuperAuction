@@ -176,7 +176,6 @@ contract("Auction Fuzzy", accounts => {
   }
 
   beforeEach(async function() {
-    const web3Provider = web3.currentProvider;
     process.env.RESET_SUPERFLUID_FRAMEWORK = true;
     process.env.NEW_TEST_RESOLVER  = true;
 
@@ -192,9 +191,11 @@ contract("Auction Fuzzy", accounts => {
 
     sf = new SuperfluidSDK.Framework({
       web3: web3,
-      tokens: ["fDAI"]
+      tokens: ["fDAI"],
+      version: "test" 
     });
     await sf.initialize();
+
     daix = sf.tokens.fDAIx;
     if (!dai) {
       const daiAddress = await sf.tokens.fDAI.address;
