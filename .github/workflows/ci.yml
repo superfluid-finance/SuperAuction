@@ -33,8 +33,8 @@ jobs:
       - name: Install, lint, build, and test
         run: |
           npm install
-          npm build
-          npm test
+          npm run-script build
+          npm run-script test
   coverage:
     name: Run coverage master of dev branch
 
