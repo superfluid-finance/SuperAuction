@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [10.x, 12.x]
+        node-version: [12.x]
 
     steps:
       - uses: actions/checkout@v2
@@ -30,11 +30,10 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Install, lint, build, and test
+      - name: Install and build
         run: |
           npm install
           npm run-script build
-          npm run-script test
   coverage:
     name: Run coverage master of dev branch
 
