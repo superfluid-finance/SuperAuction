@@ -24,12 +24,11 @@ import {
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-/*import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";*/
 import "@openzeppelin/contracts/math/SignedSafeMath.sol";
 import "@superfluid-finance/ethereum-contracts/contracts/utils/Int96SafeMath.sol";
 
 
-contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receiver */ {
+contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
 
     using Int96SafeMath for int96;
     using SafeMath for uint256;
@@ -44,7 +43,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receive
     uint256 public override immutable streamTime;
     address public override winner;
     int96 public override winnerFlowRate;
-    int96 public step;
+    int96 public override step;
 
     bool public isFinish;
     mapping(address => Bidder) public override bidders;
@@ -84,12 +83,6 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receive
 
         _host.registerApp(configWord);
     }
-
-    /*
-    function onERC721Received(address, address, uint256, bytes memory) public override returns (bytes4) {
-        return this.onERC721Received.selector;
-    }
-    */
 
     /**
      * @dev Set Auction to finish state. Has to exist one winner
@@ -140,7 +133,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receive
             (winnerFlowRate.mul(step, "Int96SafeMath: multiplication error")),
             "Auction: FlowRate is not enough"
         );
-        require(bidders[account].cumulativeTimer == 0, "Auction: Sorry no rejoins");
+        require(bidders[account].cumulativeTimer == 0, "Auction: sorry no rejoins");
         newCtx = ctx;
         bidders[account].nextAccount = winner;
         if(winner != address(0)) {
@@ -149,7 +142,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receive
         }
         winner = account;
         winnerFlowRate = flowRate;
-        emit NewWinner(winner, flowRate);
+        emit NewHighestBid(winner, flowRate);
     }
 
     /**
@@ -186,7 +179,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receive
             require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
             bidders[previousAccount].nextAccount = bidders[account].nextAccount;
             (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner, address(this));
-            newCtx = _endStream(account, newCtx);
+            newCtx = _endStream(address(this), account, newCtx);
             newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
             bidders[account].nextAccount = oldWinner;
             winner = account;
@@ -227,8 +220,8 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receive
                         if(flowRate > 0) {
                             winnerFlowRate = flowRate;
                             winner = next;
-                            emit NewWinner(winner, flowRate);
-                            return _endStream(next, ctx);
+                            emit NewHighestBid(winner, flowRate);
+                            return _endStream(address(this), next, newCtx);
                         }
                         next = bidders[next].nextAccount;
                     }
@@ -237,21 +230,13 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receive
                 delete winner;
                 delete winnerFlowRate;
             } else {
-                (, int96 flowRateUser) = _getFlowInfo(account, address(this));
-                (, int96 flowRateAuction) = _getFlowInfo(address(this), account);
-                //User canceled the auction reverse stream
-                if(flowRateUser > int96(0) && flowRateAuction == int96(0)) {
-                    return _startStream(account, flowRateUser, newCtx);
-                } else {
-                    newCtx = _endStream(account, ctx);
-                }
+                    newCtx = _endStream(account, address(this), newCtx);
+                    newCtx = _endStream(address(this), account,  newCtx);
             }
-
             emit DropPlayer(account);
-
         } else {
             if(account != winner) {
-                newCtx = _endStream(account, ctx);
+                newCtx = _endStream(address(this), account, ctx);
                 _withdrawNonWinnerPlayer(account);
             } else {
                 _settleAccount(account, oldTimestamp, oldFlowRate);
@@ -351,6 +336,11 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receive
         //}
     }
 
+    function withdrawNonWinner() external {
+        require(isFinish, "Auction: Still running");
+        _withdrawNonWinnerPlayer(address(this));
+    }
+
     /**
      * @dev Owner collects winners bid payment.
      */
@@ -413,6 +403,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receive
      * @return newCtx NewCtx to Superfluid callback caller.
      */
     function _endStream(
+        address sender,
         address receiver,
         bytes memory ctx
     )
@@ -420,14 +411,14 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction /*, IERC721Receive
     returns(bytes memory newCtx)
     {
         newCtx = ctx;
-        (, int96 flowRate) = _getFlowInfo(address(this), receiver);
+        (, int96 flowRate) = _getFlowInfo(sender, receiver);
         if(flowRate > int96(0)) {
             (newCtx, ) = _host.callAgreementWithContext(
                 _cfa,
                 abi.encodeWithSelector(
                     _cfa.deleteFlow.selector,
                     _superToken,
-                    address(this),
+                    sender,
                     receiver,
                     new bytes(0)
                 ),

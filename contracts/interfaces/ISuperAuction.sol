@@ -12,9 +12,10 @@ import {
 
 interface  ISuperAuction {
 
-    event NewWinner(address indexed account, int96 flowRate);
+    event NewHighestBid(address indexed account, int96 flowRate);
     event DropPlayer(address indexed account);
     event TransferNFT(address indexed to, uint256 indexed tokenId);
+    event Winner(address indexed account);
     event AuctionClosed();
 
     struct ViewBidder {
@@ -27,6 +28,7 @@ interface  ISuperAuction {
 
     function _cfa() external view returns (IConstantFlowAgreementV1);
     function _superToken() external view returns(ISuperToken);
+    function step() external view returns(int96);
     function winner() external view returns(address);
     function winnerFlowRate() external view returns(int96);
     function streamTime() external view returns(uint256);

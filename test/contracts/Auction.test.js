@@ -125,6 +125,21 @@ contract("SuperAuction", accounts => {
     return await getFlow(app.address, account);
   }
 
+  async function dropStream(sender, receiver, by) {
+    await sf.cfa.deleteFlow({
+      superToken: daix.address,
+      sender: sender,
+      receiver: receiver,
+      by: by
+    });
+
+    return await sf.cfa.getFlow({
+      superToken: daix.address,
+      sender: sender,
+      receiver: receiver
+    });
+  }
+
   async function getFlowFromUser(account) {
     return await getFlow(account, app.address);
   }
@@ -542,6 +557,24 @@ contract("SuperAuction", accounts => {
     assert.equal(await app.winner(), carol, "Carol is not the winner");
   });
 
+  it("Case #4.1 - Player non winner dropping auction", async () => {
+    await joinAuction(bob, "10000000");
+    let aliceFlowInfo = await joinAuction(alice, "7100000000");
+    await joinAuction(dan, "15100000000");
+    let bobFlowInfo = await dropAuction(alice);
+    let auctionBobFlow = await getFlowFromAuction(alice);
+    assert.equal(auctionBobFlow.flowRate.toString(), "0", "Bob - Is still receiving auction stream");
+  });
+
+  it("Case #4.2 - Player non winner dropping auction (Sticky stream)", async () => {
+    await joinAuction(bob, "10000000");
+    let aliceFlowInfo = await joinAuction(alice, "7100000000");
+    const auctionToBobFLow = await dropStream(app.address, bob, bob);
+    const bobToAuction = await getFlow(bob, app.address);
+    assert.equal(auctionToBobFLow.flowRate.toString(), "0", "Bob - Is receiving auction stream");
+    assert.equal(bobToAuction.flowRate.toString(), "0", "Bob - Is sending to Auciton");
+  });
+
   it("Case #5 - Players should maintain correct information", async () => {
     const bob1Flow = toBN(10000000);
     const bob2Flow = toBN(15000000);
@@ -604,7 +637,7 @@ contract("SuperAuction", accounts => {
   it("Case #9 - Should avoid rejoins", async () => {
     await joinAuction(ben, "10000000");
     await dropAuction(ben);
-    expectRevert(joinAuction(ben, "50000000"), "Auction: Sorry no rejoins");
+    expectRevert(joinAuction(ben, "50000000"), "Auction: sorry no rejoins");
   });
 
   it("Case #10 - Should avoid late updates", async () => {
@@ -702,11 +735,49 @@ contract("SuperAuction", accounts => {
     assert.equal(benTokens1.toString(), benTokens2.toString(), "Ben should have the same tokens");
   });
 
-  it("Case #17 - Call withdraw with auction is finish", async () => {
+  it("Case #16.1 - Non Winner don't get token amount - Auction still running", async () => {
+    await joinAuction(anna, "10000000");
+    await joinAuction(ben, "1100000001");
+    await joinAuction(dude, "15100000000");
+    await timeTravelOnce(3600);
+    assert.isFalse(await app.isFinish.call());
+
+    await dropAuction(anna);
+    await dropAuction(ben);
+    await dropAuction(dude);
+
+    const annaTokens1 = await app.getSettleInfo(anna, 0, 0);
+    const benTokens1 = await app.getSettleInfo(ben, 0, 0);
+    const dudeTokens1 = await app.getSettleInfo(dude, 0, 0);
+
+    assert.ok(annaTokens1.cumulativeTimer.gt(new toBN(0)), "Anna should have settleBalance");
+    assert.ok(benTokens1.cumulativeTimer.gt(new toBN(0)), "Ben should have settleBalance");
+    assert.ok(dudeTokens1.cumulativeTimer.gt(new toBN(0)), "Dude should have settleBalance");
+  });
+
+  it("Case #16.2 - Call withdraw with auction is running", async () => {
     await joinAuction(bob, "10000000");
     assert.isFalse(await app.isFinish(), "Auction should be running");
     await expectRevert(app.withdraw(), "Auction: Still running");
     await dropAuction(bob);
+  });
+
+  it("Case #16.3 - Call withdraw with auction is finish (Non-Winner)", async () => {
+    const annaTokens1 = await daix.balanceOf(anna);
+    const benTokens1 = await daix.balanceOf(ben);
+    await joinAuction(anna, "10000000");
+    await joinAuction(ben, "1100000001");
+    await joinAuction(dude, "15100000000");
+    await timeTravelOnce(3600 * 25);
+    await app.finishAuction();
+    await dropAuction(anna);
+    await dropAuction(ben);
+    await app.withdrawNonWinner.call({from: anna});
+    await app.withdrawNonWinner.call({from: ben});
+    const annaTokens2 = await daix.balanceOf(anna);
+    const benTokens2 = await daix.balanceOf(ben);
+    assert.equal(annaTokens1.toString(), annaTokens2.toString(), "Anna should have the same tokens");
+    assert.equal(benTokens1.toString(), benTokens2.toString(), "Ben should have the same tokens");
   });
 
   it("Case #17 - Should revert when Previous account is wrong", async() => {
