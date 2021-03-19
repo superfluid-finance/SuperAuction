@@ -77,6 +77,8 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         streamTime = winnerTime;
         step = stepBid + 100;
 
+        //nftContract.safeTransferFrom(tokenProvider, address(this), _tokenId);
+
         uint256 configWord =
             SuperAppDefinitions.APP_LEVEL_FINAL |
             SuperAppDefinitions.BEFORE_AGREEMENT_CREATED_NOOP;
@@ -97,12 +99,13 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
     /**
      * @dev Set Auction to finish state. Check winner time of flow to close auction
      */
-    function _endAuction(uint256 timestamp) internal {
+    function _endAuction(uint256 timestamp) private {
         if(!isFinish) {
             if(bidders[winner].cumulativeTimer.add(
                 block.timestamp.sub(timestamp)
                 ) >= streamTime) {
                 isFinish = true;
+                emit Winner(winner);
                 emit AuctionClosed();
             }
         }
@@ -124,7 +127,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         int96 flowRate,
         bytes memory ctx
     )
-    internal
+    private
     isRunning
     returns(bytes memory newCtx)
     {
@@ -159,7 +162,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         uint256 oldTimestamp,
         bytes memory ctx
     )
-    internal
+    private
     isRunning
     returns(bytes memory newCtx)
     {
@@ -186,6 +189,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         }
         _settleAccount(oldWinner, oldTimestamp, oldFlowRate);
         winnerFlowRate = flowRate;
+        emit NewHighestBid(account, flowRate);
         finishAuction();
     }
 
@@ -203,7 +207,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         int96 oldFlowRate,
         bytes memory ctx
     )
-    internal
+    private
     returns(bytes memory newCtx)
     {
         newCtx = ctx;
@@ -256,7 +260,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         address sender,
         address receiver
     )
-    internal
+    private
     view
     returns (uint256 timestamp, int96 flowRate)
     {
@@ -305,7 +309,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         uint256 cbTimestamp,
         int96 cbFlowRate
     )
-    internal
+    private
     {
           (uint256 settleBalance, uint256 cumulativeTimer) = getSettleInfo(account, cbTimestamp, cbFlowRate);
           bidders[account].cumulativeTimer = bidders[account].cumulativeTimer.add(cumulativeTimer);
@@ -316,7 +320,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
      * @dev Non winners players collect the settlement tokens balance in the end.
      * @param account Address to send SuperTokens.
      */
-    function _withdrawNonWinnerPlayer(address account) internal {
+    function _withdrawNonWinnerPlayer(address account) private {
         uint256 settleBalance = bidders[account].lastSettleAmount;
         bidders[msg.sender].lastSettleAmount = 0;
         if(_superToken.balanceOf(address(this)) >= settleBalance) {
@@ -328,12 +332,14 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
      * @dev Winner collects the NFT tokens from auction.
      * @param account Address to send NFT.
      */
-    function _withdrawWinner(address account) internal {
+    function _withdrawWinner(address account) private {
         //Transfer NFT Token
-        //if(nftContract.ownerOf(tokenId) == address(this)) {
-            //nftContract.safeTransferFrom(address(this), account, tokenId);
-        //   emit TransferNFT(account, tokenId);
-        //}
+        /*
+        if(nftContract.ownerOf(tokenId) == address(this)) {
+            nftContract.safeTransferFrom(address(this), account, tokenId);
+            emit TransferNFT(account, tokenId);
+        }
+        */
     }
 
     function withdrawNonWinner() external {
@@ -379,7 +385,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         int96 flowRate,
         bytes memory ctx
     )
-    internal
+    private
     returns(bytes memory newCtx)
     {
         (newCtx, ) = _host.callAgreementWithContext(
@@ -407,7 +413,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         address receiver,
         bytes memory ctx
     )
-    internal
+    private
     returns(bytes memory newCtx)
     {
         newCtx = ctx;

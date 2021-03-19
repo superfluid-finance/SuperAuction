@@ -9,6 +9,24 @@ module.exports = {
 
   networks: {
 
+    mainnet: {
+      provider: () =>
+      new HDWalletProvider(
+        process.env.MAINNET_MNEMONIC,
+        process.env.MAINNET_PROVIDER_URL,
+        0, //address_index
+        10, // num_addresses
+        true // shareNonce
+      ),
+      network_id: 1, // mainnet's id
+      gas: 8e6,
+      gasPrice: +process.env.MAINNET_GAS_PRICE || 1e9, // default 1 gwei
+      //confirmations: 6, // # of confs to wait between deployments. (default: 0)
+      timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+      skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+    },
+
+
     goerli: {
       provider: () => new HDWalletProvider(
         process.env.GOERLI_MNEMONIC,
@@ -16,10 +34,44 @@ module.exports = {
       ),
       network_id: 5, // Goerli's id
       gas: 8e6,
-      gasPrice: +process.env.GOERLI_GAS_PRICE || 100e9, // 100 GWEI, goerli is busy!
+      gasPrice: +process.env.GOERLI_GAS_PRICE || 1e9, // 100 GWEI, goerli is busy!
       confirmations: 6, // # of confs to wait between deployments. (default: 0)
       timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
       skipDryRun: false // Skip dry run before migrations? (default: false for public nets )
+    },
+
+    mumbai: {
+      provider: () =>
+      new HDWalletProvider(
+        process.env.MUMBAI_MNEMONIC,
+        process.env.MUMBAI_PROVIDER_URL,
+        0, //address_index
+        10, // num_addresses
+        true // shareNonce
+      ),
+      network_id: 80001,
+      gas: 8e6,
+      gasPrice: +process.env.MUMBAI_GAS_PRICE || 1e9, // default 1 gwei
+      //confirmations: 6, // # of confs to wait between deployments. (default: 0)
+      timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+      skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+    },
+
+    rinkeby: {
+      provider: () =>
+      new HDWalletProvider(
+        process.env.RINKEBY_MNEMONIC,
+        process.env.RINKEBY_PROVIDER_URL,
+        0, //address_index
+        10, // num_addresses
+        true // shareNonce
+      ),
+      network_id: 4,
+      gas: 8e6,
+      gasPrice: 1e9, // default 1 gwei
+      //confirmations: 6, // # of confs to wait between deployments. (default: 0)
+      timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+      skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
     },
 
     coverage: {
@@ -41,13 +93,13 @@ module.exports = {
     solc: {
       version: "0.7.6",    // Fetch exact version from solc-bin (default: truffle's version)
       // docker: true,        // Use "0.5.1" you've installed locally with docker (default: false)
-      // settings: {          // See the solidity docs for advice about optimization and evmVersion
-      //  optimizer: {
-      //    enabled: false,
-      //    runs: 200
-      //  },
+       settings: {          // See the solidity docs for advice about optimization and evmVersion
+        optimizer: {
+          enabled: true,
+          runs: 200
+        },
       //  evmVersion: "byzantium"
-      // }
+       }
     },
   },
   api_keys: {

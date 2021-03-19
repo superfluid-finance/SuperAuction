@@ -121,6 +121,15 @@ contract("SuperAuction", accounts => {
     });
   }
 
+  async function flowFromAuctionTo(account) {
+    return await sf.cfa.getFlow({
+      superToken: daix.address,
+      sender: app.address,
+      receiver: account 
+    });
+
+  }
+
   async function getFlowFromAuction(account) {
     return await getFlow(app.address, account);
   }
@@ -291,7 +300,7 @@ contract("SuperAuction", accounts => {
     }
   }
 
-  it("Case #0 - Check deployment", async() => {
+  it.skip("Case #0 - Check deployment", async() => {
 
     await expectRevert(SuperAuction.new(
       ZERO_ADDRESS,

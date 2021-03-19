@@ -14,6 +14,8 @@ interface  ISuperAuction {
 
     event NewHighestBid(address indexed account, int96 flowRate);
     event DropPlayer(address indexed account);
+    event Winner(address indexed account);
+    event AuctionClosed();
     event TransferNFT(address indexed to, uint256 indexed tokenId);
     event Winner(address indexed account);
     event AuctionClosed();
