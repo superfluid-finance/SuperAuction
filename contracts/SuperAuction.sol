@@ -23,7 +23,6 @@ import {
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/math/SignedSafeMath.sol";
 import "@superfluid-finance/ethereum-contracts/contracts/utils/Int96SafeMath.sol";
 
@@ -40,24 +39,25 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         address nextAccount;
     }
 
+
     uint256 public override immutable streamTime;
     address public override winner;
     int96 public override winnerFlowRate;
-    int96 public override step;
+    int96 public override immutable step;
 
-    bool public isFinish;
+    bool public override isFinish;
     mapping(address => Bidder) public override bidders;
-    IERC721 public nftContract;
-    uint256 public tokenId;
+    address public immutable nftContract;
+    uint256 public immutable tokenId;
     ISuperfluid private _host;
-    IConstantFlowAgreementV1 public override _cfa;
-    ISuperToken public override _superToken;
+    IConstantFlowAgreementV1 public immutable override _cfa;
+    ISuperToken public immutable override _superToken;
 
     constructor(
         ISuperfluid host,
         IConstantFlowAgreementV1 cfa,
         ISuperToken superToken,
-        IERC721 nft,
+        address nft,
         uint256 _tokenId,
         uint256 winnerTime,
         int96 stepBid
@@ -65,7 +65,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         require(address(host) != address(0), "Auction: host is empty");
         require(address(cfa) != address(0), "Auction: cfa is empty");
         require(address(superToken) != address(0), "Auction: superToken is empty");
-        require(address(nft) != address(0), "Auction: NFT is empty");
+        require(nft != address(0), "Auction: NFT contract is empty");
         require(winnerTime > 0, "Auction: Provide a winner stream time");
         require(stepBid > 0 && stepBid <=100, "Auction: Step value wrong" );
 
@@ -76,8 +76,6 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         _superToken = superToken;
         streamTime = winnerTime;
         step = stepBid + 100;
-
-        //nftContract.safeTransferFrom(tokenProvider, address(this), _tokenId);
 
         uint256 configWord =
             SuperAppDefinitions.APP_LEVEL_FINAL |
@@ -138,14 +136,19 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         );
         require(bidders[account].cumulativeTimer == 0, "Auction: sorry no rejoins");
         newCtx = ctx;
-        bidders[account].nextAccount = winner;
-        if(winner != address(0)) {
-            _settleAccount(winner, 0, 0);
-            newCtx = _startStream(winner, winnerFlowRate, ctx);
+        finishAuction();
+        if(!isFinish) {
+            bidders[account].nextAccount = winner;
+            if(winner != address(0)) {
+                _settleAccount(winner, 0, 0);
+                newCtx = _startStream(winner, winnerFlowRate, ctx);
+            }
+            winner = account;
+            winnerFlowRate = flowRate;
+            emit NewHighestBid(winner, flowRate);
+        } else {
+            revert("Auction: Closed auction.");
         }
-        winner = account;
-        winnerFlowRate = flowRate;
-        emit NewHighestBid(winner, flowRate);
     }
 
     /**
@@ -173,23 +176,25 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
             >= (winnerFlowRate.mul(step,"Int96SafeMath: multiplication error")
             ), "Auction: FlowRate is not enough"
         );
-
-        newCtx = ctx;
+        finishAuction();
         address oldWinner = winner;
-
-        if(account != winner) {
-            address previousAccount = abi.decode(_host.decodeCtx(ctx).userData, (address));
-            require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
-            bidders[previousAccount].nextAccount = bidders[account].nextAccount;
-            (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner, address(this));
-            newCtx = _endStream(address(this), account, newCtx);
-            newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
-            bidders[account].nextAccount = oldWinner;
-            winner = account;
+        if(!isFinish) { 
+            if(account != winner) {
+                address previousAccount = abi.decode(_host.decodeCtx(ctx).userData, (address));
+                require(bidders[previousAccount].nextAccount == account, "Auction: Previous Bidder is wrong");
+                bidders[previousAccount].nextAccount = bidders[account].nextAccount;
+                (oldTimestamp, oldFlowRate) = _getFlowInfo(oldWinner, address(this));
+                newCtx = _endStream(address(this), account, newCtx);
+                newCtx = _startStream(oldWinner, oldFlowRate, newCtx);
+                bidders[account].nextAccount = oldWinner;
+                winner = account;
+            }
+            _settleAccount(oldWinner, oldTimestamp, oldFlowRate);
+            winnerFlowRate = flowRate;
+            emit NewHighestBid(account, flowRate);
+        } else {
+            revert("Auction: Closed auction.");
         }
-        _settleAccount(oldWinner, oldTimestamp, oldFlowRate);
-        winnerFlowRate = flowRate;
-        emit NewHighestBid(account, flowRate);
         finishAuction();
     }
 
@@ -225,6 +230,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
                             winnerFlowRate = flowRate;
                             winner = next;
                             emit NewHighestBid(winner, flowRate);
+                            emit DropPlayer(account);
                             return _endStream(address(this), next, newCtx);
                         }
                         next = bidders[next].nextAccount;
@@ -240,11 +246,13 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
             emit DropPlayer(account);
         } else {
             if(account != winner) {
+                newCtx = _endStream(account, address(this), newCtx);
                 newCtx = _endStream(address(this), account, ctx);
                 _withdrawNonWinnerPlayer(account);
             } else {
                 _settleAccount(account, oldTimestamp, oldFlowRate);
-                _withdrawWinner(account);
+                newCtx = _endStream(account, address(this), newCtx);
+                newCtx = _endStream(address(this), account, newCtx);
                 delete winnerFlowRate;
             }
         }
@@ -298,6 +306,17 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         }
     }
 
+    function isWinningConditionMeet() public view override returns(bool) {
+        if(winner != address(0)) {
+            (uint256 timestamp, ) = _getFlowInfo(winner, address(this));
+            return bidders[winner].cumulativeTimer.add(
+                    block.timestamp.sub(timestamp)
+                ) >= streamTime;
+        }
+
+        return false;
+    }
+
     /**
      * @dev Change player information based on parameters.
      * @param account Address to drop.
@@ -326,20 +345,6 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         if(_superToken.balanceOf(address(this)) >= settleBalance) {
             _superToken.transferFrom(address(this), account, settleBalance);
         }
-    }
-
-    /**
-     * @dev Winner collects the NFT tokens from auction.
-     * @param account Address to send NFT.
-     */
-    function _withdrawWinner(address account) private {
-        //Transfer NFT Token
-        /*
-        if(nftContract.ownerOf(tokenId) == address(this)) {
-            nftContract.safeTransferFrom(address(this), account, tokenId);
-            emit TransferNFT(account, tokenId);
-        }
-        */
     }
 
     function withdrawNonWinner() external {
