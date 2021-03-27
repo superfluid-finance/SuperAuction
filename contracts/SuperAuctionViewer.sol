@@ -27,10 +27,6 @@ contract SuperAuctionViewer {
     event DropPlayer(address indexed account);
     event Winner(address indexed account);
     event AuctionClosed();
-    event TransferNFT(address indexed to, uint256 indexed tokenId);
-    event Winner(address indexed account);
-    event AuctionClosed();
-
 
     function getCFAContract(address auctionAddress)
     public
@@ -65,6 +61,20 @@ contract SuperAuctionViewer {
         return ISuperAuction(auctionAddress).streamTime();
     }
 
+    function isFinish(address auctionAddress)
+    public
+    view
+    returns(bool)
+    {
+        return ISuperAuction(auctionAddress).isFinish();
+    }
+
+    function isWinningConditionMeet(address auctionAddress) external view returns(bool)
+    {
+        return ISuperAuction(auctionAddress).isWinningConditionMeet();
+    }
+
+
     function getBiddersAddresses(
         address auctionAddress,
         uint256 listFrom,
@@ -94,6 +104,11 @@ contract SuperAuctionViewer {
                 top[j] = _getViewBidder(auctionAddress, _bidder);
             }
         }
+    }
+
+
+    function getViewBidder(address auctionAddress, address account) public view returns(ISuperAuction.ViewBidder memory) {
+        return _getViewBidder(auctionAddress, account);
     }
 
     function _getViewBidder(address auctionAddress, address account) private view returns(ISuperAuction.ViewBidder memory) {
