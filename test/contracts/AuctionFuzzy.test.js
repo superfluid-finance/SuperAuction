@@ -191,8 +191,7 @@ contract("Auction Fuzzy", accounts => {
 
     sf = new SuperfluidSDK.Framework({
       web3: web3,
-      tokens: ["fDAI"],
-      version: "test" 
+      tokens: ["fDAI"]
     });
     await sf.initialize();
 

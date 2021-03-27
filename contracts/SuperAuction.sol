@@ -40,7 +40,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
     }
 
 
-    uint256 public override immutable streamTime;
+    uint256 public immutable override streamTime;
     address public override winner;
     int96 public override winnerFlowRate;
     int96 public override immutable step;
@@ -247,11 +247,12 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         } else {
             if(account != winner) {
                 newCtx = _endStream(account, address(this), newCtx);
-                newCtx = _endStream(address(this), account, ctx);
+                newCtx = _endStream(address(this), account, newCtx);
                 _withdrawNonWinnerPlayer(account);
             } else {
                 _settleAccount(account, oldTimestamp, oldFlowRate);
                 newCtx = _endStream(account, address(this), newCtx);
+                //Invariance: This will never have effect
                 newCtx = _endStream(address(this), account, newCtx);
                 delete winnerFlowRate;
             }
