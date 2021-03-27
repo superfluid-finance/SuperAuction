@@ -16,9 +16,6 @@ interface  ISuperAuction {
     event DropPlayer(address indexed account);
     event Winner(address indexed account);
     event AuctionClosed();
-    event TransferNFT(address indexed to, uint256 indexed tokenId);
-    event Winner(address indexed account);
-    event AuctionClosed();
 
     struct ViewBidder {
         address account;
@@ -32,8 +29,10 @@ interface  ISuperAuction {
     function _superToken() external view returns(ISuperToken);
     function step() external view returns(int96);
     function winner() external view returns(address);
+    function isFinish() external view returns(bool);
     function winnerFlowRate() external view returns(int96);
     function streamTime() external view returns(uint256);
     function bidders(address account) external view returns(uint256 cumulativeTimer, uint256 lastSettleAmount, address nextAccount);
+    function isWinningConditionMeet() external view returns(bool);
 
 }
