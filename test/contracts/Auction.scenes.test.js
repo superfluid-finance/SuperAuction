@@ -314,8 +314,7 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     const bobFlowInfo = await joinAuction(bob, "11000000");
     await timeTravelOnce(3600 * 25);
     await expectRevert(updateAuction(alice, "14000000"), "Auction: Closed auction")
-    await dropAuction(alice);
-    await dropAuction(bob);
+    await dropAuction(alice); //Force bob settlement
     await assertNoRunningFlow(alice);
     await assertNoRunningFlow(bob);
     const bobBalanceFinal = await daix.balanceOf(bob);
@@ -325,14 +324,15 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     assert.ok(adminBalance.eq((await daix.balanceOf(admin))), "Admin did not withdraw");
     const aliceBlance = daix.balanceOf(alice);
     await app.withdrawNonWinner({from: alice});
-    const alice2Balance = daix.balanceOf(alice);
   });
 
+  /*
   it("#3 - Winner have the time, but no one close the auction - Non winner player leaves the game", async() => {
   });
   it("#4 - Winner dont have the time - Non winner player leaves the game", async() => {
   });
   it("#5 - Winner dont have the time - drops to leave auction alone", async() => {
   });
+  */
 
 });
