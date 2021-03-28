@@ -244,6 +244,7 @@ contract("SuperAuction - Scripted scenes ", accounts => {
   afterEach(async function() {
     assert.ok(!(await sf.host.isAppJailed(app.address)), "App is Jailed");
     assert.equal((await daix.balanceOf(app.address)).toString(), "0", "Auction should be empty");
+    assert.ok((await app.isFinish.call()), "Auction is not closed");
   });
 
   async function assertNoWinner() {
@@ -322,13 +323,67 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     const adminBalance = (await daix.balanceOf(admin)).add(adminWithdraw);
     await app.withdraw({from:admin});
     assert.ok(adminBalance.eq((await daix.balanceOf(admin))), "Admin did not withdraw");
-    const aliceBlance = daix.balanceOf(alice);
-    await app.withdrawNonWinner({from: alice});
   });
 
-  /*
   it("#3 - Winner have the time, but no one close the auction - Non winner player leaves the game", async() => {
+    const bobBalance = await daix.balanceOf(bob);
+    const aliceBalance = await daix.balanceOf(alice);
+    const carolBalance = await daix.balanceOf(carol);
+    const aliceFlowInfo = await joinAuction(alice, "10000000");
+    await timeTravelOnce(3600);
+    const bobFlowInfo = await joinAuction(bob, "11000000");
+    await timeTravelOnce(600);
+    const carolFlowInfo = await joinAuction(carol, "14000000");
+    await timeTravelOnce(3600 * 24);
+    await assertUserWinner(carolFlowInfo);
+    await expectRevert(updateAuction(alice, "20000000"), "Auction: Closed auction")
+    await dropAuction(alice); //Force winner settlement
+    await dropAuction(bob); //Force winner settlement
+    await assertNoRunningFlow(alice);
+    await assertNoRunningFlow(carol);
+    const carolBalanceFinal = await daix.balanceOf(carol);
+    const adminWithdraw = carolBalance.sub(carolBalanceFinal);
+    const adminBalance = (await daix.balanceOf(admin)).add(adminWithdraw);
+    await app.withdraw({from:admin});
+    assert.ok(adminBalance.eq((await daix.balanceOf(admin))), "Admin did not withdraw");
+    assert.ok(bobBalance.eq((await daix.balanceOf(bob))), "Bob did not withdraw");
+    assert.ok(aliceBalance.eq((await daix.balanceOf(alice))), "Alice did not withdraw");
   });
+
+  it("#4 - Non winner player try to make multi withdraws", async() => {
+    const bobBalance = await daix.balanceOf(bob);
+    const aliceBalance = await daix.balanceOf(alice);
+    const carolBalance = await daix.balanceOf(carol);
+    await expectRevert(app.withdrawNonWinner({from: alice}),"Auction: Still running")
+    const aliceFlowInfo = await joinAuction(alice, "10000000");
+    await expectRevert(app.withdrawNonWinner({from: alice}),"Auction: Still running")
+    await timeTravelOnce(3600);
+
+    const bobFlowInfo = await joinAuction(bob, "11000000");
+    await timeTravelOnce(600);
+    const carolFlowInfo = await joinAuction(carol, "14000000");
+    await timeTravelOnce((3600 * 25));
+    await assertUserWinner(carolFlowInfo);
+
+    await expectRevert(app.withdrawNonWinner({from: alice}),"Auction: Still running")
+    await expectRevert(app.withdraw({from: admin}),"Auction: Still running")
+    await dropAuction(bob); //Force winner settlement
+    assert.ok((await app.isFinish.call()), "Auction not finish");
+    await assertNoRunningFlow(bob);
+    await assertNoRunningFlow(carol);
+    await dropAuction(alice);
+    await assertNoRunningFlow(alice);
+
+    const carolBalanceFinal = await daix.balanceOf(carol);
+    const adminWithdraw = carolBalance.sub(carolBalanceFinal);
+    const adminBalance = (await daix.balanceOf(admin)).add(adminWithdraw);
+    await app.withdraw({from:admin});
+    assert.ok(adminBalance.eq((await daix.balanceOf(admin))), "Admin did not withdraw");
+    assert.ok(bobBalance.eq((await daix.balanceOf(bob))), "Bob did not withdraw");
+    assert.ok(aliceBalance.eq((await daix.balanceOf(alice))), "Alice did not withdraw");
+
+  });
+  /*
   it("#4 - Winner dont have the time - Non winner player leaves the game", async() => {
   });
   it("#5 - Winner dont have the time - drops to leave auction alone", async() => {
