@@ -373,6 +373,7 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     await assertNoRunningFlow(carol);
     await dropAuction(alice);
     await assertNoRunningFlow(alice);
+    await app.withdrawNonWinner({from: alice});
 
     const carolBalanceFinal = await daix.balanceOf(carol);
     const adminWithdraw = carolBalance.sub(carolBalanceFinal);
@@ -381,8 +382,9 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     assert.ok(adminBalance.eq((await daix.balanceOf(admin))), "Admin did not withdraw");
     assert.ok(bobBalance.eq((await daix.balanceOf(bob))), "Bob did not withdraw");
     assert.ok(aliceBalance.eq((await daix.balanceOf(alice))), "Alice did not withdraw");
-
+    await app.withdrawNonWinner({from: alice});
   });
+
   /*
   it("#4 - Winner dont have the time - Non winner player leaves the game", async() => {
   });
