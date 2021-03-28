@@ -383,13 +383,93 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     assert.ok(bobBalance.eq((await daix.balanceOf(bob))), "Bob did not withdraw");
     assert.ok(aliceBalance.eq((await daix.balanceOf(alice))), "Alice did not withdraw");
     await app.withdrawNonWinner({from: alice});
+    assert.ok(aliceBalance.eq((await daix.balanceOf(alice))), "Alice withdraw more tokens");
   });
 
-  /*
-  it("#4 - Winner dont have the time - Non winner player leaves the game", async() => {
+  it("#5 - Auction not close Admin withdraw multi times", async() => {
+    const bobBalance = await daix.balanceOf(bob);
+    const aliceBalance = await daix.balanceOf(alice);
+    const adminBalance = (await daix.balanceOf(admin));
+    const bobFlowInfo = await joinAuction(bob, "10000000");
+    await expectRevert(app.withdraw({from: admin}),"Auction: Still running")
+    const aliceFlowInfo = await joinAuction(alice, "11000000");
+    await dropAuction(bob);
+    await timeTravelOnce(3600 * 25);
+    assert.ok(!(await app.isFinish.call()), "Auction finish");
+    await expectRevert(app.withdraw({from: admin}),"Auction: Still running")
+    await dropAuction(alice);
+    assert.ok((await app.isFinish.call()), "Auction is not finish");
+    await app.withdraw({from: admin});
+    await timeTravelOnce(3600 * 5);
+    const aliceBalanceFinal = await daix.balanceOf(alice);
+    const adminWithdraw = aliceBalance.sub(aliceBalanceFinal);
+    await app.withdraw({from: admin});
+    await timeTravelOnce(3600 * 5);
+    await app.withdraw({from: admin});
+    assert.ok((adminBalance.add(adminWithdraw)).eq((await daix.balanceOf(admin))), "Admin did not withdraw");
+    await app.withdrawNonWinner({from: bob});
   });
-  it("#5 - Winner dont have the time - drops to leave auction alone", async() => {
-  });
-  */
 
+  it("#6 - Non Winners finish with the same balance - By dropping", async() => {
+    const bobBalance = await daix.balanceOf(bob);
+    const aliceBalance = await daix.balanceOf(alice);
+    const carolBalance = await daix.balanceOf(carol);
+    const danBalance = await daix.balanceOf(dan);
+    const karlBalance = await daix.balanceOf(karl);
+    await joinAuction(bob, "10000000");
+    await timeTravelOnce(3600 * 2);
+    await joinAuction(alice, "11000000");
+    await timeTravelOnce(3600 * 4);
+    await joinAuction(carol, "16000000");
+    await timeTravelOnce(3600 * 4);
+    await joinAuction(dan, "22000000");
+    await timeTravelOnce(3600 * 4);
+    await joinAuction(karl, "122000000");
+    await timeTravelOnce(3600 * 24);
+    await dropAuction(bob);
+    await dropAuction(alice);
+    await dropAuction(carol);
+    await dropAuction(dan);
+    const bobBalanceFinal = await daix.balanceOf(bob);
+    const aliceBalanceFinal = await daix.balanceOf(alice);
+    const carolBalanceFinal = await daix.balanceOf(carol);
+    const danBalanceFinal = await daix.balanceOf(dan);
+    assert.ok(bobBalanceFinal.eq(bobBalance), "Bob balance should be same");
+    assert.ok(aliceBalanceFinal.eq(aliceBalance), "Alice balance should be same");
+    assert.ok(carolBalanceFinal.eq(carolBalance), "Carol balance should be same");
+    assert.ok(danBalanceFinal.eq(danBalance), "Dan balance should be same");
+    await app.withdraw({from: admin});
+  });
+
+  it("#7 - Non Winners finish with the same balance - By withdraw", async() => {
+    const bobBalance = await daix.balanceOf(bob);
+    const aliceBalance = await daix.balanceOf(alice);
+    const carolBalance = await daix.balanceOf(carol);
+    const danBalance = await daix.balanceOf(dan);
+    const karlBalance = await daix.balanceOf(karl);
+    await joinAuction(bob, "10000000");
+    await joinAuction(alice, "11000000");
+    await joinAuction(carol, "16000000");
+    await joinAuction(dan, "22000000");
+    await joinAuction(karl, "122000000");
+    await dropAuction(bob);
+    await dropAuction(alice);
+    await dropAuction(carol);
+    await dropAuction(dan);
+    await timeTravelOnce(3600 * 25);
+    await app.finishAuction();
+    await app.withdrawNonWinner({from: bob});
+    await app.withdrawNonWinner({from: alice});
+    await app.withdrawNonWinner({from: carol});
+    await app.withdrawNonWinner({from: dan});
+    const bobBalanceFinal = await daix.balanceOf(bob);
+    const aliceBalanceFinal = await daix.balanceOf(alice);
+    const carolBalanceFinal = await daix.balanceOf(carol);
+    const danBalanceFinal = await daix.balanceOf(dan);
+    assert.ok(bobBalanceFinal.eq(bobBalance), "Bob balance should be same");
+    assert.ok(aliceBalanceFinal.eq(aliceBalance), "Alice balance should be same");
+    assert.ok(carolBalanceFinal.eq(carolBalance), "Carol balance should be same");
+    assert.ok(danBalanceFinal.eq(danBalance), "Dan balance should be same");
+    await app.withdraw({from: admin});
+  });
 });

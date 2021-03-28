@@ -352,8 +352,9 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
      * @param account Address to send SuperTokens.
      */
     function _withdrawNonWinnerPlayer(address account) private {
+        require(account != winner, "Auction: Caller is the winner");
         uint256 settleBalance = bidders[account].lastSettleAmount;
-        bidders[msg.sender].lastSettleAmount = 0;
+        bidders[account].lastSettleAmount = 0;
         if(_superToken.balanceOf(address(this)) >= settleBalance) {
             _superToken.transferFrom(address(this), account, settleBalance);
         }
@@ -364,7 +365,9 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
      */
     function withdrawNonWinner() external {
         require(isFinish, "Auction: Still running");
-        _withdrawNonWinnerPlayer(address(this));
+        (, int96 flowRate) = _getFlowInfo(address(this), msg.sender);
+        require(flowRate == 0, "Auction: Close your stream to this auction");
+        _withdrawNonWinnerPlayer(msg.sender);
     }
 
     /**
@@ -380,6 +383,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
                     ).mul(flowRate)));
                     assert(_superToken.transferFrom(address(this), owner(), balance));
     }
+
     /**
      * @dev Owner can stop the auction if there is no winner.
      */
