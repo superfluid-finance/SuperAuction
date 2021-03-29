@@ -299,7 +299,7 @@ contract("SuperAuction", accounts => {
     }
   }
 
-  it.skip("Case #0 - Check deployment", async() => {
+  it("Case #0 - Check deployment", async() => {
 
     await expectRevert(SuperAuction.new(
       ZERO_ADDRESS,
@@ -342,7 +342,7 @@ contract("SuperAuction", accounts => {
       99, //Fake
       86400,
       10
-    ), "Auction: NFT is empty");
+    ), "Auction: NFT contract is empty");
 
     await expectRevert(SuperAuction.new(
       sf.host.address,
@@ -736,7 +736,6 @@ contract("SuperAuction", accounts => {
     await app.finishAuction();
     await dropAuction(anna);
     await dropAuction(ben);
-    await dropAuction(dude);
     const annaTokens2 = await daix.balanceOf(anna);
     const benTokens2 = await daix.balanceOf(ben);
     assert.equal(annaTokens1.toString(), annaTokens2.toString(), "Anna should have the same tokens");
