@@ -244,6 +244,7 @@ contract("SuperAuction - Scripted scenes ", accounts => {
   afterEach(async function() {
     assert.ok(!(await sf.host.isAppJailed(app.address)), "App is Jailed");
     assert.equal((await daix.balanceOf(app.address)).toString(), "0", "Auction should be empty");
+    assert.ok((await daix.balanceOf(admin)).gt(toBN(toWad(100))), "Admin should have more tokens");
     assert.ok((await app.isFinish.call()), "Auction is not closed");
   });
 
@@ -472,4 +473,5 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     assert.ok(danBalanceFinal.eq(danBalance), "Dan balance should be same");
     await app.withdraw({from: admin});
   });
+
 });

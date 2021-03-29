@@ -384,6 +384,12 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
                     assert(_superToken.transferFrom(address(this), owner(), balance));
     }
 
+    function withdrawAmount(uint256 amount) external onlyOwner {
+        require(isFinish, "Auction: Still running");
+        delete bidders[winner].lastSettleAmount;
+        assert(_superToken.transferFrom(address(this), owner(), amount));
+    }
+
     /**
      * @dev Owner can stop the auction if there is no winner.
      */
