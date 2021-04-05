@@ -56,7 +56,7 @@ module.exports = {
       ),
       network_id: 5, // Goerli's id
       gas: 8e6,
-      gasPrice: +process.env.GOERLI_GAS_PRICE || 1e9, // 100 GWEI, goerli is busy!
+      gasPrice: +process.env.GOERLI_GAS_PRICE || 2e9, // 100 GWEI, goerli is busy!
       confirmations: 6, // # of confs to wait between deployments. (default: 0)
       timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
       skipDryRun: false // Skip dry run before migrations? (default: false for public nets )
@@ -123,7 +123,14 @@ module.exports = {
       gas: 0xfffffffffff, // <-- Use this high gas value
       gasPrice: 0x01 // <-- Use this low gas price
     },
+  ganache: {
+      host: "localhost",
+      port: 8545,
+      network_id: "*"
+    },
+
   },
+
 
   // Set default mocha options here, use special reporters etc.
   mocha: {

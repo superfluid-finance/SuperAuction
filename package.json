@@ -16,8 +16,9 @@
   "license": "ISC",
   "dependencies": {
     "@openzeppelin/contracts": "3.4.0",
-    "@superfluid-finance/ethereum-contracts": "^0.2.8",
-    "@superfluid-finance/js-sdk": "^0.3.5",
+    "@poanet/solidity-flattener": "^3.0.6",
+    "@superfluid-finance/ethereum-contracts": "1.0.0-rc.2",
+    "@superfluid-finance/js-sdk": "dev",
     "@truffle/contract": "^4.3.6",
     "@truffle/hdwallet-provider": "^1.2.3",
     "dotenv": "^8.2.0"

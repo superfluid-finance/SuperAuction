@@ -60,7 +60,8 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         address nft,
         uint256 _tokenId,
         uint256 winnerTime,
-        int96 stepBid
+        int96 stepBid,
+        string memory registrationKey 
     ) {
         require(address(host) != address(0), "Auction: host is empty");
         require(address(cfa) != address(0), "Auction: cfa is empty");
@@ -81,7 +82,11 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
             SuperAppDefinitions.APP_LEVEL_FINAL |
             SuperAppDefinitions.BEFORE_AGREEMENT_CREATED_NOOP;
 
-        _host.registerApp(configWord);
+        if(bytes(registrationKey).length > 0) {
+            _host.registerAppWithKey(configWord, registrationKey);
+        } else {
+            _host.registerApp(configWord);
+        }
     }
 
     /**
