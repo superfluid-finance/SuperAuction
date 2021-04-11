@@ -502,13 +502,5 @@ contract("SuperAuction - Interactions", accounts => {
     assert.ok(aliceBalanceFinal.eq(aliceBalance), "Alice balance should be same");
     await app.withdraw({from: admin});
     console.log("Bob final balance ", bobBalanceFinal.toString());
-    console.log((await app.debug()).toString());
-    console.log((await app.debug2()).toString());
-    console.log((await app.debug3()).toString());
-
-    console.log("HERE ", (bobBalanceFinal.add((await app.debug()))).toString());
   });
-
-  //Droping as the winner but missing time to complete the game
-
 });
