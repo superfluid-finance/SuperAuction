@@ -225,7 +225,8 @@ contract("Auction Fuzzy", accounts => {
       "0x00F96712cd4995bCd8647dd9Baa995286e4d5c99", //Fake
       "1", //Fake
       500,
-      10
+      10,
+      ""
     );
     viewer = await web3tx(Viewer.new, "Deploy SuperAuctionViewer")();
   });
@@ -434,7 +435,8 @@ contract("Auction Fuzzy", accounts => {
         "0x00F96712cd4995bCd8647dd9Baa995286e4d5c99", //Fake
         "1", //Fake
         86400,
-        10
+        10,
+        ""
       );
 
       initialGlobalTime = await (await web3.eth.getBlock("latest")).timestamp;

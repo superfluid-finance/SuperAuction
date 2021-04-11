@@ -11,7 +11,7 @@ const traveler = require("ganache-time-traveler");
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers").constants;
 const TEST_TRAVEL_TIME = 3600 * 24; // 24 hours
 
-contract("SuperAuction - Scripted scenes ", accounts => {
+contract("SuperAuction - Interactions", accounts => {
   const errorHandler = err => {
     if (err) throw err;
   };
@@ -125,7 +125,7 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     return await sf.cfa.getFlow({
       superToken: daix.address,
       sender: sender,
-      receiver: receiver 
+      receiver: receiver
     });
   }
 
@@ -235,7 +235,8 @@ contract("SuperAuction - Scripted scenes ", accounts => {
       "0x00F96712cd4995bCd8647dd9Baa995286e4d5c99", //Fake
       99, //Fake
       86400,
-      10
+      10,
+      ""
     );
 
     viewer = await web3tx(Viewer.new, "Deploy SuperAuctionViewer")();
@@ -276,7 +277,6 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     );
   }
 
-
   async function userFinishAuctionCall(account) {
     await app.finishAuction({from:account});
     assert.ok(await app.isFinish.call(), "Auction not closed");
@@ -289,7 +289,7 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     assert.equal(b.flowRate.toString(), "0", "Auctions is sending a flow to user");
   }
 
-  it("#1 - Winner have the time, but no one close the auction - New Player try to enter the game", async() => {
+  it("#1 - Winner have the time, but no one close the auction - new player enters the game - should revert", async() => {
     const bobBalance = await daix.balanceOf(bob);
     const bobFlowInfo = await joinAuction(bob, "10000000");
     await timeTravelOnce(3600 * 25);
@@ -357,7 +357,7 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     const carolBalance = await daix.balanceOf(carol);
     await expectRevert(app.withdrawNonWinner({from: alice}),"Auction: Still running")
     const aliceFlowInfo = await joinAuction(alice, "10000000");
-    await expectRevert(app.withdrawNonWinner({from: alice}),"Auction: Still running")
+    await expectRevert(app.withdrawNonWinner({from: alice}),"Auction: Caller is the winner")
     await timeTravelOnce(3600);
 
     const bobFlowInfo = await joinAuction(bob, "11000000");
@@ -387,7 +387,8 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     assert.ok(aliceBalance.eq((await daix.balanceOf(alice))), "Alice withdraw more tokens");
   });
 
-  it("#5 - Auction not close Admin withdraw multi times", async() => {
+  /*
+  it("#5 - Auction is not closed Admin execute function withdraw multitimes", async() => {
     const bobBalance = await daix.balanceOf(bob);
     const aliceBalance = await daix.balanceOf(alice);
     const adminBalance = (await daix.balanceOf(admin));
@@ -406,10 +407,11 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     const adminWithdraw = aliceBalance.sub(aliceBalanceFinal);
     await app.withdraw({from: admin});
     await timeTravelOnce(3600 * 5);
-    await app.withdraw({from: admin});
+    //await app.withdraw({from: admin});
     assert.ok((adminBalance.add(adminWithdraw)).eq((await daix.balanceOf(admin))), "Admin did not withdraw");
     await app.withdrawNonWinner({from: bob});
   });
+  */
 
   it("#6 - Non Winners finish with the same balance - By dropping", async() => {
     const bobBalance = await daix.balanceOf(bob);
@@ -453,25 +455,60 @@ contract("SuperAuction - Scripted scenes ", accounts => {
     await joinAuction(carol, "16000000");
     await joinAuction(dan, "22000000");
     await joinAuction(karl, "122000000");
+
     await dropAuction(bob);
     await dropAuction(alice);
     await dropAuction(carol);
     await dropAuction(dan);
+
     await timeTravelOnce(3600 * 25);
     await app.finishAuction();
+
     await app.withdrawNonWinner({from: bob});
     await app.withdrawNonWinner({from: alice});
     await app.withdrawNonWinner({from: carol});
     await app.withdrawNonWinner({from: dan});
+    await dropAuction(karl);
+
     const bobBalanceFinal = await daix.balanceOf(bob);
     const aliceBalanceFinal = await daix.balanceOf(alice);
     const carolBalanceFinal = await daix.balanceOf(carol);
     const danBalanceFinal = await daix.balanceOf(dan);
+
     assert.ok(bobBalanceFinal.eq(bobBalance), "Bob balance should be same");
     assert.ok(aliceBalanceFinal.eq(aliceBalance), "Alice balance should be same");
     assert.ok(carolBalanceFinal.eq(carolBalance), "Carol balance should be same");
     assert.ok(danBalanceFinal.eq(danBalance), "Dan balance should be same");
+
     await app.withdraw({from: admin});
   });
+
+  it("#8 - Winner try to count all time of stream - Second player should have reverse stream discount", async() => {
+    const bobBalance = await daix.balanceOf(bob);
+    const aliceBalance = await daix.balanceOf(alice);
+    await joinAuction(bob, "10000000");
+    await timeTravelOnce(3600 * 5);
+    await joinAuction(alice, "11000000");
+    await timeTravelOnce(3600 * 15);
+    await dropAuction(alice);
+    await timeTravelOnce(3600 * 20);
+    await app.finishAuction();
+    assert.ok((await app.isFinish.call()), "Auction is not closed");
+    await dropAuction(bob);
+    await app.withdrawNonWinner({from: alice});
+    const bobBalanceFinal = await daix.balanceOf(bob);
+    const aliceBalanceFinal = await daix.balanceOf(alice);
+    //assert.ok(bobBalanceFinal.eq(bobBalance), "Bob balance should be same");
+    assert.ok(aliceBalanceFinal.eq(aliceBalance), "Alice balance should be same");
+    await app.withdraw({from: admin});
+    console.log("Bob final balance ", bobBalanceFinal.toString());
+    console.log((await app.debug()).toString());
+    console.log((await app.debug2()).toString());
+    console.log((await app.debug3()).toString());
+
+    console.log("HERE ", (bobBalanceFinal.add((await app.debug()))).toString());
+  });
+
+  //Droping as the winner but missing time to complete the game
 
 });

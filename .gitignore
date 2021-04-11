@@ -6,3 +6,5 @@ build
 .coverage_artifacts
 
 *.code-workspace
+
+coverage/
