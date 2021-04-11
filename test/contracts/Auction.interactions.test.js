@@ -206,7 +206,7 @@ contract("SuperAuction - Interactions", accounts => {
 
     await sf.initialize();
     daix = sf.tokens.fDAIx;
-    if (!dai) {
+    //if (!dai) {
       const daiAddress = await sf.tokens.fDAI.address;
       dai = await sf.contracts.TestToken.at(daiAddress);
       for (let i = 0; i < accounts.length; ++i) {
@@ -226,7 +226,7 @@ contract("SuperAuction - Interactions", accounts => {
           { from: accounts[i] }
         );
       }
-    }
+    //}
 
     app = await web3tx(SuperAuction.new, "Deploy SuperAuction")(
       sf.host.address,
@@ -387,8 +387,7 @@ contract("SuperAuction - Interactions", accounts => {
     assert.ok(aliceBalance.eq((await daix.balanceOf(alice))), "Alice withdraw more tokens");
   });
 
-  /*
-  it("#5 - Auction is not closed Admin execute function withdraw multitimes", async() => {
+  it("#5 - Auction is not closed Admin execute function withdraw multi times", async() => {
     const bobBalance = await daix.balanceOf(bob);
     const aliceBalance = await daix.balanceOf(alice);
     const adminBalance = (await daix.balanceOf(admin));
@@ -403,15 +402,11 @@ contract("SuperAuction - Interactions", accounts => {
     assert.ok((await app.isFinish.call()), "Auction is not finish");
     await app.withdraw({from: admin});
     await timeTravelOnce(3600 * 5);
+    await app.withdrawNonWinner({from: bob});
     const aliceBalanceFinal = await daix.balanceOf(alice);
     const adminWithdraw = aliceBalance.sub(aliceBalanceFinal);
-    await app.withdraw({from: admin});
-    await timeTravelOnce(3600 * 5);
-    //await app.withdraw({from: admin});
     assert.ok((adminBalance.add(adminWithdraw)).eq((await daix.balanceOf(admin))), "Admin did not withdraw");
-    await app.withdrawNonWinner({from: bob});
   });
-  */
 
   it("#6 - Non Winners finish with the same balance - By dropping", async() => {
     const bobBalance = await daix.balanceOf(bob);
@@ -494,6 +489,7 @@ contract("SuperAuction - Interactions", accounts => {
     await timeTravelOnce(3600 * 20);
     await app.finishAuction();
     assert.ok((await app.isFinish.call()), "Auction is not closed");
+    assert.ok((await app.isWinningConditionMeet()), "Auction should be possible to closed");
     await dropAuction(bob);
     await app.withdrawNonWinner({from: alice});
     const bobBalanceFinal = await daix.balanceOf(bob);
