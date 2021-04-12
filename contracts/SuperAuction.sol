@@ -41,7 +41,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
     uint256 public immutable override streamTime;
     address public override winner;
     int96 public override winnerFlowRate;
-    uint256 public lastTick;
+    uint256 private _lastTick;
     int96 public override immutable step;
 
     bool public override isFinish;
@@ -104,7 +104,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
     function _endAuction() private {
         if(!isFinish && winner != address(0)) {
             if(bidders[winner].cumulativeTimer.add(
-                block.timestamp.sub(lastTick)
+                block.timestamp.sub(_lastTick)
                 ) >= streamTime) {
                 isFinish = true;
                 emit Winner(winner);
@@ -147,7 +147,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
                 _settleWinnerAccount();
                 newCtx = _startStream(winner, winnerFlowRate, ctx);
             } else {
-                lastTick = block.timestamp;
+                _lastTick = block.timestamp;
             }
             winner = account;
             winnerFlowRate = flowRate;
@@ -240,7 +240,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
                 //Note: There is no winner in list.
                 delete winner;
                 delete winnerFlowRate;
-                delete lastTick;
+                delete _lastTick;
             } else {
                     newCtx = _endStream(account, address(this), newCtx);
                     newCtx = _endStream(address(this), account,  newCtx);
@@ -296,7 +296,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
     )
     {
         if(account == winner) {
-            cumulativeTimer = ((block.timestamp).sub(lastTick));
+            cumulativeTimer = ((block.timestamp).sub(_lastTick));
             settleBalance = cumulativeTimer.mul(uint256(winnerFlowRate));
         } else {
             cumulativeTimer = bidders[account].cumulativeTimer;
@@ -314,7 +314,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         (uint256 settleBalance, uint256 cumulativeTimer) = getSettledInfo(winner);
         bidders[winner].cumulativeTimer = bidders[winner].cumulativeTimer.add(cumulativeTimer);
         bidders[winner].lastSettleAmount = bidders[winner].lastSettleAmount.add(settleBalance);
-        lastTick = block.timestamp;
+        _lastTick = block.timestamp;
     }
 
         /**
@@ -325,7 +325,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
     function isWinningConditionMeet() public view override returns(bool) {
         if(winner != address(0)) {
             return bidders[winner].cumulativeTimer.add(
-                block.timestamp.sub(lastTick)
+                block.timestamp.sub(_lastTick)
                 ) >= streamTime;
         }
 
