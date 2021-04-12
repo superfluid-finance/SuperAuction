@@ -81,7 +81,8 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         uint256 configWord =
             SuperAppDefinitions.APP_LEVEL_FINAL |
             SuperAppDefinitions.BEFORE_AGREEMENT_CREATED_NOOP |
-            SuperAppDefinitions.BEFORE_AGREEMENT_UPDATED_NOOP;
+            SuperAppDefinitions.BEFORE_AGREEMENT_UPDATED_NOOP |
+            SuperAppDefinitions.BEFORE_AGREEMENT_TERMINATED_NOOP;
 
         if(bytes(registrationKey).length > 0) {
             _host.registerAppWithKey(configWord, registrationKey);
@@ -489,33 +490,12 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         );
     }
 
-    function beforeAgreementTerminated(
-        ISuperToken superToken,
-        address agreementClass,
-        bytes32 /*agreementId*/,
-        bytes calldata agreementData,
-        bytes calldata /*ctx*/
-    )
-    external
-    view
-    override
-    onlyHost
-    returns (bytes memory cbdata)
-    {
-
-        //if auction stream to user is closed or is from liquidation, get always the player -> auction stream
-        if(_isSameToken(superToken) && _isCFAv1(agreementClass)) {
-            (address sender, address receiver) = abi.decode(agreementData, (address, address));
-            cbdata = abi.encode(sender == address(this) ? receiver : sender);
-        }
-    }
-
     function afterAgreementTerminated(
         ISuperToken superToken,
         address agreementClass,
         bytes32 /*agreementId*/,
-        bytes calldata /*agreementData*/,
-        bytes calldata cbdata,
+        bytes calldata agreementData,
+        bytes calldata /*cbdata*/,
         bytes calldata ctx
     )
     external
@@ -524,8 +504,8 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
     returns (bytes memory newCtx) {
         newCtx = ctx;
         if(_isSameToken(superToken) && _isCFAv1(agreementClass)) {
-            (address account) = abi.decode(cbdata, (address));
-            newCtx = _dropPlayer(account, ctx);
+            (address sender, address receiver) = abi.decode(agreementData, (address, address));
+            newCtx = _dropPlayer(sender == address(this) ? receiver : sender, ctx);
         }
     }
 
