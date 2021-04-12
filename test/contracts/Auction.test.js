@@ -80,13 +80,14 @@ contract("SuperAuction", accounts => {
       );
     }
 
-    await sf.cfa.updateFlow({
+    const tx = await sf.cfa.updateFlow({
       superToken: daix.address,
       sender: account,
       receiver: app.address,
       flowRate: flowRate,
       userData: userData
     });
+    const block = await web3.eth.getBlock("latest");
     let obj = {};
     obj = await sf.cfa.getFlow({
       superToken: daix.address,
@@ -94,6 +95,8 @@ contract("SuperAuction", accounts => {
       receiver: app.address
     });
     obj.account = account;
+    obj.blockNumber = tx.receipt.blockNumber;
+    obj.timestamp = toBN(block.timestamp);
     return obj;
   }
 
@@ -296,7 +299,14 @@ contract("SuperAuction", accounts => {
     }
   }
 
-
+  async function printBiddersInfo() {
+    console.log("================ User State ================");
+    for(usr of accounts) {
+      let data = await app.bidders(usr);
+      console.log(userNames[usr] + " Balance " + data.lastSettleAmount.toString() + " Time " + data.cumulativeTimer.toString());
+    }
+    console.log("================ ///////// ================");
+  }
   beforeEach(async function() {
 
     await deployFramework(errorHandler, { web3: web3, from: admin });
@@ -352,6 +362,7 @@ contract("SuperAuction", accounts => {
 
   afterEach(async function() {
     assert.ok(!(await sf.host.isAppJailed(app.address)), "App is Jailed");
+    await printBiddersInfo();
   });
 
 
@@ -900,7 +911,6 @@ contract("SuperAuction", accounts => {
     console.log(auctionBalance.toString());
     aliceTime = aliceDrop.timestamp.sub(aliceFlowInfo.timestamp);
     assert.isOk(await app.isFinish(), "Auction should not be open");
-    const data = await app.bidders(alice);
     let users = [alice];
     let time = [aliceTime];
     let balances = [2000000 * aliceTime];

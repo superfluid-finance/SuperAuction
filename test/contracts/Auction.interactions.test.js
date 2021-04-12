@@ -48,28 +48,14 @@ contract("SuperAuction - Interactions", accounts => {
   }
 
   async function joinAuction(account, flowRate) {
-    const data = await app.bidders(account);
-    if (data.cumulativeTimer.toString() !== "0") {
-      console.log(`${userNames[account]} is rejoining`);
-    }
-
-    const previousPlayerAddress = (await getPreviousPlayerUnfiltered(account))
-      .account;
-    let userData;
-    if (previousPlayerAddress !== undefined) {
-      console.log(previousPlayerAddress);
-      userData = await web3.eth.abi.encodeParameters(
-        ["address"],
-        [previousPlayerAddress]
-      );
-    }
-    await sf.cfa.createFlow({
+    const tx = await sf.cfa.createFlow({
       superToken: daix.address,
       sender: account,
       receiver: app.address,
       flowRate: flowRate,
-      userData: userData
+      userData: ""
     });
+    const block = await web3.eth.getBlock("latest");
     let obj = {};
     obj = await sf.cfa.getFlow({
       superToken: daix.address,
@@ -77,6 +63,8 @@ contract("SuperAuction - Interactions", accounts => {
       receiver: app.address
     });
     obj.account = account;
+    obj.blockNumber = tx.receipt.blockNumber;
+    obj.timestamp = toBN(block.timestamp);
     return obj;
   }
 
@@ -90,13 +78,14 @@ contract("SuperAuction - Interactions", accounts => {
       );
     }
 
-    await sf.cfa.updateFlow({
+    const tx = await sf.cfa.updateFlow({
       superToken: daix.address,
       sender: account,
       receiver: app.address,
       flowRate: flowRate,
       userData: userData
     });
+    const block = await web3.eth.getBlock("latest");
     let obj = {};
     obj = await sf.cfa.getFlow({
       superToken: daix.address,
@@ -104,21 +93,28 @@ contract("SuperAuction - Interactions", accounts => {
       receiver: app.address
     });
     obj.account = account;
+    obj.blockNumber = tx.receipt.blockNumber;
+    obj.timestamp = toBN(block.timestamp);
     return obj;
   }
 
   async function dropAuction(account) {
-    await sf.cfa.deleteFlow({
+    let obj = {};
+    const tx = await sf.cfa.deleteFlow({
       superToken: daix.address,
       sender: account,
       receiver: app.address
     });
-
-    return await sf.cfa.getFlow({
+    const block = await web3.eth.getBlock("latest");
+    obj = await sf.cfa.getFlow({
       superToken: daix.address,
       sender: account,
       receiver: app.address
     });
+    obj.account = account;
+    obj.blockNumber = tx.receipt.blockNumber;
+    obj.timestamp = toBN(block.timestamp);
+    return obj;
   }
 
   async function getFlowInfo(sender, receiver) {
@@ -187,6 +183,63 @@ contract("SuperAuction - Interactions", accounts => {
     return pos == 1 ? ZERO_ADDRESS : (await getListTop100())[pos - 2];
   }
 
+
+  async function assertNoWinner() {
+    const winner = await app.winner.call();
+    const winnerFlowRate = await app.winnerFlowRate.call();
+    assert.equal(winner, ZERO_ADDRESS, "no one should be the winner");
+    assert.equal(
+      winnerFlowRate.toString(),
+      "0",
+      "should not flowRate as winner"
+    );
+  }
+
+  async function assertUserWinner(flowInfo) {
+    const winner = await app.winner.call();
+    const winnerFlowRate = await app.winnerFlowRate.call();
+    assert.equal(
+      winner,
+      flowInfo.account,
+      `${userNames[flowInfo.account]} should be the winner`
+    );
+    assert.equal(
+      winnerFlowRate.toString(),
+      flowInfo.flowRate.toString(),
+      `${
+        userNames[flowInfo.account]
+      } should have the correct flowRate as winner`
+    );
+  }
+
+  async function userFinishAuctionCall(account) {
+    await app.finishAuction({from:account});
+    assert.ok(await app.isFinish.call(), "Auction not closed");
+  }
+
+  async function assertNoRunningFlow(account) {
+    const a = await getFlowInfo(account, app.address);
+    const b = await getFlowInfo(app.address, account);
+    assert.equal(a.flowRate.toString(), "0", "User is sending a flow to auction");
+    assert.equal(b.flowRate.toString(), "0", "Auctions is sending a flow to user");
+  }
+
+  async function assertCumulativeTime(users, time) {
+    assert.equal(users.length, time.length, "Users and Time should be order");
+    for(i=0; i< users.length; i++) {
+      let result = await app.bidders(users[i]);
+      assert.equal(result.cumulativeTimer.toString(), time[i].toString(), userNames[users[i]] + " Cumulative time should be the same");
+    }
+  }
+
+  async function assertCumulativeBalance(users, balances) {
+    assert.equal(users.length, balances.length, "Users and Time should be order");
+    for(i=0; i< users.length; i++) {
+      let result = await app.bidders(users[i]);
+      assert.equal(result.lastSettleAmount.toString(), balances[i].toString(), userNames[users[i]] + " Cumulative Balance should be the same");
+    }
+  }
+
   beforeEach(async function() {
 
     await deployFramework(errorHandler, { web3: web3, from: admin });
@@ -249,45 +302,6 @@ contract("SuperAuction - Interactions", accounts => {
     assert.ok((await app.isFinish.call()), "Auction is not closed");
   });
 
-  async function assertNoWinner() {
-    const winner = await app.winner.call();
-    const winnerFlowRate = await app.winnerFlowRate.call();
-    assert.equal(winner, ZERO_ADDRESS, "no one should be the winner");
-    assert.equal(
-      winnerFlowRate.toString(),
-      "0",
-      "should not flowRate as winner"
-    );
-  }
-
-  async function assertUserWinner(flowInfo) {
-    const winner = await app.winner.call();
-    const winnerFlowRate = await app.winnerFlowRate.call();
-    assert.equal(
-      winner,
-      flowInfo.account,
-      `${userNames[flowInfo.account]} should be the winner`
-    );
-    assert.equal(
-      winnerFlowRate.toString(),
-      flowInfo.flowRate.toString(),
-      `${
-        userNames[flowInfo.account]
-      } should have the correct flowRate as winner`
-    );
-  }
-
-  async function userFinishAuctionCall(account) {
-    await app.finishAuction({from:account});
-    assert.ok(await app.isFinish.call(), "Auction not closed");
-  }
-
-  async function assertNoRunningFlow(account) {
-    const a = await getFlowInfo(account, app.address);
-    const b = await getFlowInfo(app.address, account);
-    assert.equal(a.flowRate.toString(), "0", "User is sending a flow to auction");
-    assert.equal(b.flowRate.toString(), "0", "Auctions is sending a flow to user");
-  }
 
   it("#1 - Winner have the time, but no one close the auction - new player enters the game - should revert", async() => {
     const bobBalance = await daix.balanceOf(bob);
