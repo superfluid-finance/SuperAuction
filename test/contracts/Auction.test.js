@@ -30,6 +30,8 @@ contract("SuperAuction", accounts => {
   userNames[john] = "John";
   userNames[dude] = "Dude";
 
+  process.env.RESET_SUPERFLUID_FRAMEWORK = true;
+  process.env.NEW_TEST_RESOLVER  = true;
 
   let sf;
   let dai;
@@ -48,28 +50,14 @@ contract("SuperAuction", accounts => {
   }
 
   async function joinAuction(account, flowRate) {
-    const data = await app.bidders(account);
-    if (data.cumulativeTimer.toString() !== "0") {
-      console.log(`${userNames[account]} is rejoining`);
-    }
-
-    const previousPlayerAddress = (await getPreviousPlayerUnfiltered(account))
-      .account;
-    let userData;
-    if (previousPlayerAddress !== undefined) {
-      console.log(previousPlayerAddress);
-      userData = await web3.eth.abi.encodeParameters(
-        ["address"],
-        [previousPlayerAddress]
-      );
-    }
-    await sf.cfa.createFlow({
+    const tx = await sf.cfa.createFlow({
       superToken: daix.address,
       sender: account,
       receiver: app.address,
       flowRate: flowRate,
-      userData: userData
+      userData: ""
     });
+    const block = await web3.eth.getBlock("latest");
     let obj = {};
     obj = await sf.cfa.getFlow({
       superToken: daix.address,
@@ -77,6 +65,8 @@ contract("SuperAuction", accounts => {
       receiver: app.address
     });
     obj.account = account;
+    obj.blockNumber = tx.receipt.blockNumber;
+    obj.timestamp = toBN(block.timestamp);
     return obj;
   }
 
@@ -108,17 +98,22 @@ contract("SuperAuction", accounts => {
   }
 
   async function dropAuction(account) {
-    await sf.cfa.deleteFlow({
+    let obj = {};
+    const tx = await sf.cfa.deleteFlow({
       superToken: daix.address,
       sender: account,
       receiver: app.address
     });
-
-    return await sf.cfa.getFlow({
+    const block = await web3.eth.getBlock("latest");
+    obj = await sf.cfa.getFlow({
       superToken: daix.address,
       sender: account,
       receiver: app.address
     });
+    obj.account = account;
+    obj.blockNumber = tx.receipt.blockNumber;
+    obj.timestamp = toBN(block.timestamp);
+    return obj;
   }
 
   async function flowFromAuctionTo(account) {
@@ -285,6 +280,22 @@ contract("SuperAuction", accounts => {
     }
   }
 
+  async function assertCumulativeTime(users, time) {
+    assert.equal(users.length, time.length, "Users and Time should be order");
+    for(i=0; i< users.length; i++) {
+      let result = await app.bidders(users[i]);
+      assert.equal(result.cumulativeTimer.toString(), time[i].toString(), userNames[users[i]] + " Cumulative time should be the same");
+    }
+  }
+
+  async function assertCumulativeBalance(users, balances) {
+    assert.equal(users.length, balances.length, "Users and Time should be order");
+    for(i=0; i< users.length; i++) {
+      let result = await app.bidders(users[i]);
+      assert.equal(result.lastSettleAmount.toString(), balances[i].toString(), userNames[users[i]] + " Cumulative Balance should be the same");
+    }
+  }
+
 
   beforeEach(async function() {
 
@@ -417,9 +428,7 @@ contract("SuperAuction", accounts => {
 
   });
 
-  /*
-    Auctions new players
-  */
+  //Auctions new players
 
   it("Case #1 - Player joins a new auction - should be winner", async () => {
     const bobFlowInfo = await joinAuction(bob, "10000000");
@@ -629,6 +638,7 @@ contract("SuperAuction", accounts => {
     await dropAuction(dan);
     await assertNoWinner();
   });
+
   //Auction closed
   it("Case #18 - winner ends the auction by leaving - should finish the auction", async () => {
     await joinAuction(bob, "10000000");
@@ -706,6 +716,46 @@ contract("SuperAuction", accounts => {
     expectRevert(joinAuction(karl, "995100000000"), "Auction: Not running");
   });
 
+  it("Case # - admin can't withdraw before auction ended", async () => {
+    await joinAuction(bob, "10000000");
+    await timeTravelOnce(3600 * 10);
+    await joinAuction(carol, "1100000001");
+    await timeTravelOnce(3600 * 30);
+    assert.isFalse(await app.isFinish(), "Auction should be open");
+    await expectRevert(app.withdraw({from: admin}), "Auction: Still running");
+  });
+
+  it("Case # - admin can withdrawAmount before auction ended", async () => {
+    await joinAuction(bob, "10000000");
+    await timeTravelOnce(3600 * 10);
+    await joinAuction(carol, "1100000001");
+    await timeTravelOnce(3600 * 30);
+    assert.isFalse(await app.isFinish(), "Auction should be open");
+    const howMuch = await daix.balanceOf(app.address);
+    await app.withdrawAmount(howMuch, {from: admin});
+  });
+
+  it("Case # - Winner pays winner bid - admin withdraw function by calling withdraw amount", async () => {
+    const initialAuctionBalance = await daix.balanceOf(app.address);
+    const annaTokens1 = await daix.balanceOf(anna);
+    await joinAuction(anna, toBN("100000"));
+    await timeTravelOnce(3600 * 30);
+    await dropAuction(anna);
+    assert.isTrue(await app.isFinish(), "Auction should be closed");
+    const annaTokens2 = await daix.balanceOf(anna);
+    const howMuchAlicePay = annaTokens1.sub(annaTokens2);
+    const auctionTokens = await daix.balanceOf(app.address);
+    const howMuchAuctionGet = auctionTokens.sub(initialAuctionBalance);
+    assert.equal(howMuchAlicePay.toString(), howMuchAuctionGet.toString(), "Auction is printing money");
+    const adminTokens1 = await daix.balanceOf(admin);
+    await app.withdrawAmount(howMuchAuctionGet, {from: admin});
+    const adminTokens2 = await daix.balanceOf(admin);
+    const howMuchOwnerReceives = adminTokens2.sub(adminTokens1);
+    assert.equal(howMuchAlicePay.toString(),howMuchOwnerReceives.toString(), "Owner did not get the full amount send by alice" );
+    const adminTokens3 = await daix.balanceOf(admin);
+    assert.equal(adminTokens3.toString(), adminTokens1.add(howMuchOwnerReceives).toString(), "Admin is collecting more money after the withdraw");
+  });
+
   //After auction finished
   it("Case #26 - Winner pays winner bid", async () => {
     const initialAuctionBalance = await daix.balanceOf(app.address);
@@ -725,7 +775,7 @@ contract("SuperAuction", accounts => {
     );
     const adminTokens2 = await daix.balanceOf(admin);
     const howMuchOwnerReceives = adminTokens2.sub(adminTokens1);
-    assert.equal(howMuchAlicePay.toString(),howMuchOwnerReceives.toString(), "Owner didnt get the full amount send by alice" );
+    assert.equal(howMuchAlicePay.toString(),howMuchOwnerReceives.toString(), "Owner did not get the full amount send by alice" );
     const adminTokens3 = await daix.balanceOf(admin);
     assert.equal(adminTokens3.toString(), adminTokens1.add(howMuchOwnerReceives).toString(), "Admin is collecting more money after the withdraw");
   });
@@ -838,4 +888,51 @@ contract("SuperAuction", accounts => {
     );
   });
 
+  //Auction duration and balances
+  it("Case #34 - Auction should run until winner has the correct time and balance", async () =>{
+    const adminBalance = await daix.balanceOf(admin);
+    const aliceFlowInfo = await joinAuction(alice, "2000000");
+    await timeTravelOnce(3600 * 25);
+    assert.ok((await app.isWinningConditionMeet()), "Auction should be possible to closed");
+    await assertUserWinner(aliceFlowInfo);
+    const aliceDrop = await dropAuction(alice);
+    const auctionBalance = await daix.balanceOf(app.address);
+    console.log(auctionBalance.toString());
+    aliceTime = aliceDrop.timestamp.sub(aliceFlowInfo.timestamp);
+    assert.isOk(await app.isFinish(), "Auction should not be open");
+    const data = await app.bidders(alice);
+    let users = [alice];
+    let time = [aliceTime];
+    let balances = [2000000 * aliceTime];
+    await assertCumulativeTime(users, time);
+    await assertCumulativeBalance(users, balances);
+    await app.withdraw({from: admin});
+    const adminFinalBalance = await daix.balanceOf(admin);
+    assert.equal(adminBalance.add(toBN(2000000 * aliceTime)).toString(), adminFinalBalance.toString(), "Admin balance is not right");
+  });
+
+  it("Case 35 - Auction should continue with new winner time", async () =>{
+    const adminBalance = await daix.balanceOf(admin);
+    const aliceFlowInfo = await joinAuction(alice, "2000000");
+    await timeTravelOnce(3600 * 10);
+    const bobFlowInfo = await joinAuction(bob, "12000000");
+    await timeTravelOnce(3600 * 11);
+    assert.isFalse(await app.isFinish(), "Auction should be open");
+    await timeTravelOnce(3600 * 15);
+    const bobDrop = await dropAuction(bob);
+    assert.isTrue(await app.isFinish(), "Auction should be closed");
+    const aliceTime = bobFlowInfo.timestamp.sub(aliceFlowInfo.timestamp);
+    const aliceRecover = aliceTime.mul(toBN(2000000));
+    const bobTime = bobDrop.timestamp.sub(bobFlowInfo.timestamp);
+    const bobPays = bobTime.mul(toBN(12000000));
+
+    const users = [bob, alice];
+    const time = [bobTime, aliceTime];
+    const balances = [bobPays.toString(), aliceRecover.toString()];
+    await assertCumulativeTime(users, time);
+    await assertCumulativeBalance(users, balances);
+    await app.withdraw({from: admin});
+    const adminFinalBalance = await daix.balanceOf(admin);
+    assert.equal(adminBalance.add(bobPays).toString(), adminFinalBalance.toString(), "Admin balance is not right");
+  });
 });
