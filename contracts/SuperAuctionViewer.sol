@@ -69,9 +69,18 @@ contract SuperAuctionViewer {
         return ISuperAuction(auctionAddress).isFinish();
     }
 
-    function isWinningConditionMeet(address auctionAddress) external view returns(bool)
-    {
-        return ISuperAuction(auctionAddress).isWinningConditionMeet();
+    function isWinningConditionMeet(ISuperAuction a) external view returns (bool) {
+        address winner = a.winner();
+        if (winner != address(0)) {
+            (uint256 cumulativeTimer, ,) = a.bidders(winner);
+            uint256 lastTick = a.lastTick();
+            uint256 streamTime = a.streamTime();
+            return cumulativeTimer.add(
+                block.timestamp.sub(lastTick)
+                ) >= streamTime;
+        } else {
+            return false;
+        }
     }
 
 
