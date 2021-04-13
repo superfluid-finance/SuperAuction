@@ -134,7 +134,7 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
     returns(bytes memory newCtx)
     {
         require(
-            (flowRate.mul(100, "Int96SafeMath: multiplication error")) >=
+            (flowRate.mul(100, "Int96SafeMath : multiplication error")) >=
             (winnerFlowRate.mul(step, "Int96SafeMath: multiplication error")),
             "Auction: FlowRate is not enough"
         );
@@ -316,21 +316,6 @@ contract SuperAuction is Ownable, SuperAppBase, ISuperAuction {
         bidders[winner].cumulativeTimer = bidders[winner].cumulativeTimer.add(cumulativeTimer);
         bidders[winner].lastSettleAmount = bidders[winner].lastSettleAmount.add(settleBalance);
         lastTick = block.timestamp;
-    }
-
-        /**
-     * @dev Check if is possible to find a winner.
-     * @dev If winning conditions are meet, any drop player will close the auction.
-     * @notice Closing the auction will not close the winning flow to this contract.
-     */
-    function isWinningConditionMeet() public view override returns(bool) {
-        if(winner != address(0)) {
-            return bidders[winner].cumulativeTimer.add(
-                block.timestamp.sub(lastTick)
-                ) >= streamTime;
-        }
-
-        return false;
     }
 
     /**

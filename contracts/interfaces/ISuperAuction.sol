@@ -34,6 +34,5 @@ interface  ISuperAuction {
     function streamTime() external view returns(uint256);
     function lastTick() external view returns(uint256);
     function bidders(address account) external view returns(uint256 cumulativeTimer, uint256 lastSettleAmount, address nextAccount);
-    function isWinningConditionMeet() external view returns(bool);
     function getSettledInfo(address account) external view returns(uint256 settleBalance,uint256 cumulativeTimer);
 }
